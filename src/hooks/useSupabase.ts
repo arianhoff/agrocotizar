@@ -1,0 +1,137 @@
+import { useEffect, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase/client'
+import type { Quote, User } from '@/types'
+import { useSavedQuotesStore, type SavedQuote } from '@/store/savedQuotesStore'
+
+// ─── Auth ─────────────────────────────────────────────────────
+
+export function useSession() {
+  const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setLoading(false)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    return () => listener.subscription.unsubscribe()
+  }, [])
+
+  return { session, loading, user: session?.user ?? null }
+}
+
+export function useSignIn() {
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      supabase.auth.signInWithPassword({ email, password }),
+  })
+}
+
+export function useSignOut() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => supabase.auth.signOut(),
+    onSuccess: () => qc.clear(),
+  })
+}
+
+// ─── Quotes (local-first, Supabase optional) ──────────────────
+
+export function useQuotes(filters?: { status?: string; limit?: number }) {
+  const store = useSavedQuotesStore()
+  const filtered = filters?.status
+    ? store.quotes.filter(q => q.status === filters.status)
+    : store.quotes
+  const limited = filters?.limit ? filtered.slice(0, filters.limit) : filtered
+  return { data: limited as SavedQuote[], isLoading: false, error: null }
+}
+
+export function useQuote(id: string) {
+  const store = useSavedQuotesStore()
+  const found = store.quotes.find(q => q.id === id) ?? null
+  return { data: found, isLoading: false, error: null }
+}
+
+export function useSaveQuote() {
+  const store = useSavedQuotesStore()
+  const [isPending, setIsPending] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [isError, setIsError] = useState(false)
+
+  const mutate = (quote: Quote) => {
+    setIsPending(true)
+    setIsSuccess(false)
+    setIsError(false)
+    try {
+      const now = new Date().toISOString()
+      store.upsert({
+        id: quote.id,
+        quote_number: quote.quote_number,
+        status: quote.status,
+        currency: quote.currency,
+        exchange_rate: quote.exchange_rate,
+        total: (quote as any).totals?.total ?? 0,
+        valid_days: quote.valid_days,
+        notes: quote.notes,
+        data: quote as any,
+        created_at: quote.created_at ?? now,
+        updated_at: now,
+      })
+      setIsSuccess(true)
+    } catch {
+      setIsError(true)
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  return { mutate, isPending, isSuccess, isError }
+}
+
+export function useUpdateQuoteStatus() {
+  const store = useSavedQuotesStore()
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: Quote['status'] }) => {
+      store.updateStatus(id, status)
+      return { id, status }
+    },
+  })
+}
+
+export function useDeleteQuote() {
+  const store = useSavedQuotesStore()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      store.remove(id)
+    },
+  })
+}
+
+// ─── Clients ──────────────────────────────────────────────────
+
+export function useClients(search?: string) {
+  return useQuery({
+    queryKey: ['clients', search],
+    queryFn: async () => {
+      let q = supabase.from('clients').select('*').order('name')
+      if (search) q = q.ilike('name', `%${search}%`)
+      const { data, error } = await q
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useUpsertClient() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (client: { id?: string; name: string; cuit?: string; province?: string; city?: string; phone?: string; email?: string }) => {
+      const { data, error } = await supabase.from('clients').upsert(client).select().single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clients'] }),
+  })
+}

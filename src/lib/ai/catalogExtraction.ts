@@ -1,0 +1,372 @@
+import type { ProductCategory } from '@/types'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface ExtractedProduct {
+  code: string
+  name: string
+  category: ProductCategory
+  price: number
+  currency: 'USD' | 'ARS'
+  description?: string
+}
+
+export interface ExtractedOption {
+  product_code: string   // código de la máquina a la que pertenece
+  name: string
+  price: number
+  currency: 'USD' | 'ARS'
+  requires_commission: boolean
+}
+
+export interface ExtractedCatalogResult {
+  products: ExtractedProduct[]
+  options: ExtractedOption[]
+}
+
+export type DiffStatus = 'new' | 'price_update' | 'unchanged'
+
+export interface ProductDiff {
+  extracted: ExtractedProduct
+  status: DiffStatus
+  oldPrice?: number
+}
+
+export interface OptionDiff {
+  extracted: ExtractedOption
+  status: DiffStatus
+  oldPrice?: number
+  targetProductId?: string
+}
+
+export interface CatalogDiff {
+  productDiffs: ProductDiff[]
+  optionDiffs: OptionDiff[]
+}
+
+export type SupportedMediaType =
+  | 'image/jpeg'
+  | 'image/png'
+  | 'image/gif'
+  | 'image/webp'
+  | 'application/pdf'
+
+const VALID_IMAGE_TYPES: SupportedMediaType[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
+// ─── System Prompt ────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `Sos un asistente especializado en extraer listas de precios de maquinaria agrícola.
+Analizá el documento y separalo en dos grupos:
+
+**1. PRODUCTOS** (ítems que se venden de forma independiente con precio propio):
+Asigná la categoría más precisa según el tipo de ítem:
+- "Mixer / Unifeed" → mixers, unifeed, mezcladores de alimento
+- "Tolva" → tolvas semilleras, graneleras, autodescargables
+- "Embolsadora" → embolsadoras, moledoras-embolsadoras, extractoras
+- "Tractor" → tractores de cualquier marca y potencia
+- "Cosechadora" → cosechadoras, plataformas, cabezales
+- "Sembradora" → sembradoras de grano fino o grueso
+- "Pulverizadora" → pulverizadoras autopropulsadas o de arrastre
+- "Repuesto / Accesorio" → repuestos sueltos, kits de repuesto, piezas
+- "Servicio / Mano de obra" → servicios, revisiones, mano de obra
+- "Implemento varios" → todo lo que no encaje en las categorías anteriores
+
+**2. OPCIONALES / COMPLEMENTOS** (accesorios o extras de una máquina específica):
+Son ítems que se agregan a una máquina puntual. Identificá a qué máquina pertenecen por su código.
+Ejemplos: neumáticos, balanzas, revestimientos, kits, brazos hidráulicos, frenos, dosificadores, etc.
+Si un opcional aplica a varias máquinas, duplicalo con cada código.
+
+Reglas importantes:
+- El precio debe ser número sin separadores de miles ni símbolo (ej: 27700 no "27.700" ni "U$S 27.700")
+- Si la moneda no está explícita asumí USD
+- No dupliques productos con el mismo código
+- En el campo "description" usá solo texto simple sin comillas internas
+- requires_commission: true para la mayoría; false solo si el ítem explícitamente no lleva comisión
+- Respondé ÚNICAMENTE con JSON válido sin texto adicional ni bloques de código
+
+Formato exacto de respuesta:
+{
+  "products": [
+    { "code": "string", "name": "string", "category": "string", "price": number, "currency": "USD", "description": "string opcional sin comillas" }
+  ],
+  "options": [
+    { "product_code": "string", "name": "string", "price": number, "currency": "USD", "requires_commission": true }
+  ]
+}`
+
+// ─── JSON extractor ───────────────────────────────────────────────────────────
+
+function safeParseJSON(raw: string): { products?: unknown[]; options?: unknown[] } {
+  // Strip markdown code fences
+  let clean = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
+
+  // Find the outermost JSON object
+  const start = clean.indexOf('{')
+  const end   = clean.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('La IA no devolvió JSON válido. Intentá con un archivo diferente.')
+  }
+  clean = clean.slice(start, end + 1)
+
+  // Attempt 1: direct parse
+  try {
+    return JSON.parse(clean) as { products?: unknown[]; options?: unknown[] }
+  } catch { /* fall through */ }
+
+  // Attempt 2: sanitize description fields (remove or escape inner quotes)
+  const sanitized = clean
+    // Replace literal newlines inside strings
+    .replace(/("(?:[^"\\]|\\.)*")/g, (m) => m.replace(/\n/g, ' ').replace(/\r/g, ''))
+    // Remove description entirely if it's causing issues
+    .replace(/"description"\s*:\s*"(?:[^"\\]|\\.)*"/g, '"description": ""')
+
+  try {
+    return JSON.parse(sanitized) as { products?: unknown[]; options?: unknown[] }
+  } catch { /* fall through */ }
+
+  // Attempt 3: strip trailing commas (common mistake in LLM JSON)
+  const noTrailing = sanitized.replace(/,\s*([\]}])/g, '$1')
+  try {
+    return JSON.parse(noTrailing) as { products?: unknown[]; options?: unknown[] }
+  } catch (finalErr) {
+    throw new Error(
+      `No se pudo interpretar la respuesta de la IA. ` +
+      `Intentá con un archivo más pequeño o en formato diferente. ` +
+      `(${finalErr instanceof Error ? finalErr.message : String(finalErr)})`
+    )
+  }
+}
+
+// ─── Partial JSON extractor (for streaming) ───────────────────────────────────
+
+function extractCompleteObjects(text: string, arrayKey: 'products' | 'options'): any[] {
+  const keyIdx = text.indexOf(`"${arrayKey}"`)
+  if (keyIdx === -1) return []
+  const bracketIdx = text.indexOf('[', keyIdx)
+  if (bracketIdx === -1) return []
+
+  const objects: any[] = []
+  let i = bracketIdx + 1
+  let depth = 0
+  let objStart = -1
+  let inString = false
+  let escaping = false
+
+  while (i < text.length) {
+    const ch = text[i]
+    if (escaping) { escaping = false; i++; continue }
+    if (ch === '\\' && inString) { escaping = true; i++; continue }
+    if (ch === '"') { inString = !inString; i++; continue }
+    if (inString) { i++; continue }
+
+    if (ch === '{') {
+      if (depth === 0) objStart = i
+      depth++
+    } else if (ch === '}') {
+      depth--
+      if (depth === 0 && objStart !== -1) {
+        try { objects.push(JSON.parse(text.slice(objStart, i + 1))) } catch { /* incomplete */ }
+        objStart = -1
+      }
+    } else if (ch === ']' && depth === 0) {
+      break
+    }
+    i++
+  }
+
+  return objects
+}
+
+// ─── API call ─────────────────────────────────────────────────────────────────
+
+export interface ExtractionProgress {
+  products: ExtractedProduct[]
+  options: ExtractedOption[]
+}
+
+export async function extractCatalogFromFile(
+  base64Data: string,
+  mediaType: SupportedMediaType,
+  _apiKey: string,  // kept for backwards compatibility, ignored — key lives in server env
+  onProgress?: (progress: ExtractionProgress) => void
+): Promise<ExtractedCatalogResult> {
+  const isImage = VALID_IMAGE_TYPES.includes(mediaType)
+
+  const contentBlock = isImage
+    ? { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType, data: base64Data } }
+    : { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64Data } }
+
+  const requestBody = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 16000,
+    system: SYSTEM_PROMPT,
+    messages: [{
+      role: 'user',
+      content: [
+        contentBlock,
+        {
+          type: 'text',
+          text: 'Extraé todos los productos y opcionales de esta lista de precios. Separalos correctamente por categoría. Respondé solo con el JSON, sin texto adicional.',
+        },
+      ],
+    }],
+  }
+
+  // ── Try streaming first; fall back to non-streaming if body not available ──
+  let useStreaming = !!onProgress
+
+  if (useStreaming) {
+    try {
+      const response = await fetch('/api/anthropic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...requestBody, stream: true }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err?.error?.message ?? `Error API ${response.status}`)
+      }
+
+      if (!response.body) {
+        useStreaming = false
+      } else {
+        // ── Stream SSE response ──────────────────────────────────────────────
+        const reader  = response.body.getReader()
+        const decoder = new TextDecoder()
+        let accumulated  = ''
+        let lineBuffer   = ''
+        let lastProdLen  = 0
+        let lastOptLen   = 0
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          lineBuffer += decoder.decode(value, { stream: true })
+          const lines = lineBuffer.split('\n')
+          lineBuffer  = lines.pop() ?? ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const data = line.slice(6).trim()
+            if (data === '[DONE]') continue
+            try {
+              const evt = JSON.parse(data)
+              if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+                accumulated += evt.delta.text
+
+                if (onProgress) {
+                  const prods = extractCompleteObjects(accumulated, 'products')
+                    .filter((p: any) => p.code && p.name && typeof p.price === 'number') as ExtractedProduct[]
+                  const opts  = extractCompleteObjects(accumulated, 'options')
+                    .filter((o: any) => o.product_code && o.name && typeof o.price === 'number') as ExtractedOption[]
+
+                  if (prods.length !== lastProdLen || opts.length !== lastOptLen) {
+                    lastProdLen = prods.length
+                    lastOptLen  = opts.length
+                    onProgress({ products: prods, options: opts })
+                  }
+                }
+              }
+            } catch { /* skip malformed SSE line */ }
+          }
+        }
+
+        const parsed = safeParseJSON(accumulated)
+        const products = (parsed.products ?? [])
+          .filter((p: any) => p.code && p.name && typeof p.price === 'number') as ExtractedProduct[]
+        const options = (parsed.options ?? [])
+          .filter((o: any) => o.product_code && o.name && typeof o.price === 'number') as ExtractedOption[]
+
+        return { products, options }
+      }
+    } catch (err) {
+      // If streaming fails (network error, CORS, etc.), fall through to non-streaming
+      if (!(err instanceof Error) || err.message.includes('API')) throw err
+      // Network-level error — try non-streaming fallback
+      useStreaming = false
+    }
+  }
+
+  // ── Non-streaming fallback ─────────────────────────────────────────────────
+  let response: Response
+  try {
+    response = await fetch('/api/anthropic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    })
+  } catch {
+    throw new Error(
+      'No se pudo conectar con el servidor. ' +
+      'Verificá tu conexión a internet. ' +
+      'Si el archivo es muy grande (más de 20 MB), intentá con un PDF de menos páginas.'
+    )
+  }
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Error API ${response.status}`)
+  }
+
+  const data = await response.json()
+  const raw  = (data.content ?? []).map((b: { text?: string }) => b.text ?? '').join('')
+  const parsed = safeParseJSON(raw)
+
+  const products = (parsed.products ?? [])
+    .filter((p: any) => p.code && p.name && typeof p.price === 'number') as ExtractedProduct[]
+  const options = (parsed.options ?? [])
+    .filter((o: any) => o.product_code && o.name && typeof o.price === 'number') as ExtractedOption[]
+
+  return { products, options }
+}
+
+// ─── Diff helpers ─────────────────────────────────────────────────────────────
+
+export function diffCatalog(
+  result: ExtractedCatalogResult,
+  existingProducts: { id: string; code: string; base_price: number }[],
+  existingOptions: Record<string, { id: string; name: string; price: number }[]>,
+): CatalogDiff {
+  const normalize = (s: string) => s.toLowerCase().trim()
+
+  const productDiffs: ProductDiff[] = result.products.map(ext => {
+    const match = existingProducts.find(e => normalize(e.code) === normalize(ext.code))
+    if (!match) return { extracted: ext, status: 'new' }
+    if (Math.round(match.base_price) !== Math.round(ext.price))
+      return { extracted: ext, status: 'price_update', oldPrice: match.base_price }
+    return { extracted: ext, status: 'unchanged' }
+  })
+
+  const optionDiffs: OptionDiff[] = result.options.map(ext => {
+    const targetProduct = existingProducts.find(p => normalize(p.code) === normalize(ext.product_code))
+    const targetProductId = targetProduct?.id
+
+    const existingOpts = targetProductId ? (existingOptions[targetProductId] ?? []) : []
+    const matchOpt = existingOpts.find(o => normalize(o.name) === normalize(ext.name))
+
+    if (!matchOpt) return { extracted: ext, status: 'new', targetProductId }
+    if (Math.round(matchOpt.price) !== Math.round(ext.price))
+      return { extracted: ext, status: 'price_update', oldPrice: matchOpt.price, targetProductId }
+    return { extracted: ext, status: 'unchanged', targetProductId }
+  })
+
+  return { productDiffs, optionDiffs }
+}
+
+// ─── File reader ──────────────────────────────────────────────────────────────
+
+export function readFileAsBase64(file: File): Promise<{ base64: string; mediaType: SupportedMediaType }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const result = e.target?.result as string
+      const [header, base64] = result.split(',')
+      const mediaType = header.replace('data:', '').replace(';base64', '') as SupportedMediaType
+      resolve({ base64, mediaType })
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
