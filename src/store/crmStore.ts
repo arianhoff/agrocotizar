@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { FollowUp } from '@/types'
+import { supabase } from '@/lib/supabase/client'
 
 interface CRMStore {
   followUps: FollowUp[]
@@ -11,6 +12,8 @@ interface CRMStore {
   deleteFollowUp: (id: string) => void
   /** Marca como hecho y agenda el próximo recordatorio automáticamente */
   completeAndReschedule: (id: string, notes?: string) => void
+  hydrate: (followUps: FollowUp[]) => void
+  clear: () => void
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9)
@@ -19,6 +22,24 @@ function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + days)
   return d.toISOString().split('T')[0]
+}
+
+// Map FollowUp → Supabase row (snake_case already matches)
+function toRow(f: FollowUp) {
+  return {
+    id: f.id,
+    quote_id: f.quote_id,
+    quote_number: f.quote_number,
+    client_name: f.client_name,
+    client_phone: f.client_phone,
+    client_email: f.client_email,
+    seller_email: f.seller_email,
+    scheduled_date: f.scheduled_date,
+    reminder_days: f.reminder_days,
+    notes: f.notes,
+    status: f.status,
+    sent_at: f.sent_at,
+  }
 }
 
 export const useCRMStore = create<CRMStore>()(
@@ -38,16 +59,22 @@ export const useCRMStore = create<CRMStore>()(
             reminder_days: f.reminder_days ?? 3,
           }
           set(s => ({ followUps: [...s.followUps, newF] }))
+          supabase.from('follow_ups').insert(toRow(newF)).then()
           return newF
         },
 
-        updateFollowUp: (id, patch) => set(s => ({
-          followUps: s.followUps.map(f => f.id === id ? { ...f, ...patch } : f),
-        })),
+        updateFollowUp: (id, patch) => {
+          set(s => ({
+            followUps: s.followUps.map(f => f.id === id ? { ...f, ...patch } : f),
+          }))
+          const updated = get().followUps.find(f => f.id === id)
+          if (updated) supabase.from('follow_ups').update(toRow(updated)).eq('id', id).then()
+        },
 
-        deleteFollowUp: (id) => set(s => ({
-          followUps: s.followUps.filter(f => f.id !== id),
-        })),
+        deleteFollowUp: (id) => {
+          set(s => ({ followUps: s.followUps.filter(f => f.id !== id) }))
+          supabase.from('follow_ups').delete().eq('id', id).then()
+        },
 
         completeAndReschedule: (id, notes) => {
           const fu = get().followUps.find(f => f.id === id)
@@ -56,6 +83,8 @@ export const useCRMStore = create<CRMStore>()(
           set(s => ({
             followUps: s.followUps.map(f => f.id === id ? { ...f, status: 'done' } : f),
           }))
+          supabase.from('follow_ups').update({ status: 'done' }).eq('id', id).then()
+
           // Create next follow-up
           const nextDate = addDays(new Date().toISOString().split('T')[0], fu.reminder_days)
           const next: FollowUp = {
@@ -67,7 +96,12 @@ export const useCRMStore = create<CRMStore>()(
             notes: notes ?? `Seguimiento automático — ${fu.reminder_days} días desde último contacto`,
           }
           set(s => ({ followUps: [...s.followUps, next] }))
+          supabase.from('follow_ups').insert(toRow(next)).then()
         },
+
+        hydrate: (followUps) => set({ followUps }),
+
+        clear: () => set({ followUps: [], sellerEmail: '' }),
       }),
       { name: 'agrocotizar-crm' }
     ),

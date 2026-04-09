@@ -89,6 +89,7 @@ export function QuoteSummary() {
   const totals = computeTotals(quote)
   const { currency, exchange_rate, payment } = quote
   const sym = (n: number) => fmtCurrency(n, currency)
+  const arsVal = (n: number) => exchange_rate > 0 ? `$ ${fmt(n * exchange_rate)}` : sym(n)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [sharingWA, setSharingWA]   = useState(false)
   const [sharingEM, setSharingEM]   = useState(false)
@@ -177,11 +178,11 @@ export function QuoteSummary() {
             {collapsed ? 'Ver detalle' : 'Total cotización'}
           </span>
           <span className="text-[20px] font-bold text-[#22C55E] leading-tight tabular-nums">
-            {sym(totals.total)}
+            {arsVal(totals.total)}
           </span>
-          {currency === 'USD' && totals.total > 0 && (
+          {totals.total > 0 && exchange_rate > 0 && (
             <span className="text-[11px] text-white/50 font-mono leading-none">
-              ≈ $ {fmt(totals.total * exchange_rate)} ARS
+              ≈ {sym(totals.total)} · TC $ {fmt(exchange_rate)}
             </span>
           )}
         </div>
@@ -199,31 +200,32 @@ export function QuoteSummary() {
 
           {/* Totals breakdown */}
           <div className="space-y-0.5">
-            <SummaryRow label="Subtotal bruto" value={sym(totals.gross)} />
-            {totals.item_discounts > 0    && <SummaryRow label="Desc. por ítem"    value={`– ${sym(totals.item_discounts)}`}    accent="rojo" />}
-            {totals.general_discounts > 0 && <SummaryRow label="Desc. generales"   value={`– ${sym(totals.general_discounts)}`} accent="rojo" />}
+            <SummaryRow label="Subtotal bruto" value={arsVal(totals.gross)} />
+            {totals.item_discounts > 0    && <SummaryRow label="Desc. por ítem"    value={`– ${arsVal(totals.item_discounts)}`}    accent="rojo" />}
+            {totals.general_discounts > 0 && <SummaryRow label="Desc. generales"   value={`– ${arsVal(totals.general_discounts)}`} accent="rojo" />}
             {totals.payment_discount > 0  && (
-              <SummaryRow label={`Desc. ${payment.mode} (${payment.discount_pct}%)`} value={`– ${sym(totals.payment_discount)}`} accent="rojo" />
+              <SummaryRow label={`Desc. ${payment.mode} (${payment.discount_pct}%)`} value={`– ${arsVal(totals.payment_discount)}`} accent="rojo" />
             )}
-            <SummaryRow label="Subtotal neto" value={sym(totals.net)} />
-            {totals.freight > 0 && <SummaryRow label="Flete"          value={sym(totals.freight)} />}
-            {totals.iibb > 0    && <SummaryRow label="Percep. IIBB"   value={sym(totals.iibb)} />}
+            <SummaryRow label="Subtotal neto" value={arsVal(totals.net)} />
+            {totals.freight > 0 && <SummaryRow label="Flete"          value={arsVal(totals.freight)} />}
+            {totals.iibb > 0    && <SummaryRow label="Percep. IIBB"   value={arsVal(totals.iibb)} />}
             {totals.iva > 0 && (
               <>
-                <SummaryRow label="Base imponible"             value={sym(totals.tax_base)} />
-                <SummaryRow label={`IVA (${quote.taxes.iva_pct}%)`} value={sym(totals.iva)} />
+                <SummaryRow label="Base imponible"             value={arsVal(totals.tax_base)} />
+                <SummaryRow label={`IVA (${quote.taxes.iva_pct}%)`} value={arsVal(totals.iva)} />
               </>
             )}
-            <div className="pt-3 mt-2 border-t-2 border-[#E2E8F0] flex justify-between items-baseline">
-              <span className="text-[14px] font-semibold text-[#0F172A]">TOTAL</span>
-              <span className="text-[20px] font-bold text-[#22C55E]">{sym(totals.total)}</span>
-            </div>
-            {currency === 'USD' && totals.total > 0 && (
-              <div className="mt-2 p-3 bg-[#F8FAFC] rounded-lg text-center border border-[#E2E8F0]">
-                <div className="text-[11px] text-[#64748B]">≈ Pesos · TC ${exchange_rate.toLocaleString('es-AR')}</div>
-                <div className="text-[17px] font-bold text-[#0F172A] mt-0.5">$ {fmt(totals.total * exchange_rate)}</div>
+            <div className="pt-3 mt-2 border-t-2 border-[#E2E8F0]">
+              <div className="flex justify-between items-center">
+                <span className="text-[14px] font-semibold text-[#0F172A]">TOTAL</span>
+                <div className="text-right">
+                  <div className="text-[20px] font-bold text-[#22C55E]">{arsVal(totals.total)}</div>
+                  {exchange_rate > 0 && (
+                    <div className="text-[11px] text-[#94A3B8] font-mono">≈ {sym(totals.total)} · TC {exchange_rate.toLocaleString('es-AR')}</div>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Financing simulation */}
@@ -235,17 +237,17 @@ export function QuoteSummary() {
               <div className="space-y-1">
                 {payment.mode === 'financiado' && totals.deposit !== undefined && (
                   <>
-                    <FinancingRow label={`Anticipo (${payment.deposit_pct}%)`}       value={sym(totals.deposit)} />
-                    <FinancingRow label="Saldo a financiar"                           value={sym(totals.total - totals.deposit)} />
-                    <FinancingRow label={`${payment.installments} cuotas de`}         value={`${sym(totals.installment_amount)}/mes`} accent />
-                    {totals.total_financed && <FinancingRow label="Total financiado"  value={sym(totals.total_financed)} />}
+                    <FinancingRow label={`Anticipo (${payment.deposit_pct}%)`}       value={arsVal(totals.deposit)} />
+                    <FinancingRow label="Saldo a financiar"                           value={arsVal(totals.total - totals.deposit)} />
+                    <FinancingRow label={`${payment.installments} cuotas de`}         value={`${arsVal(totals.installment_amount)}/mes`} accent />
+                    {totals.total_financed && <FinancingRow label="Total financiado"  value={arsVal(totals.total_financed)} />}
                   </>
                 )}
                 {payment.mode === 'leasing' && (
                   <>
-                    <FinancingRow label={`Canon × ${payment.lease_term_months} meses`}       value={`${sym(totals.installment_amount)}/mes`} accent />
-                    <FinancingRow label={`Opción de compra (${payment.buyout_pct}%)`}         value={sym(totals.total * (payment.buyout_pct ?? 10) / 100)} />
-                    {totals.total_financed && <FinancingRow label="Total leasing"             value={sym(totals.total_financed)} />}
+                    <FinancingRow label={`Canon × ${payment.lease_term_months} meses`}       value={`${arsVal(totals.installment_amount)}/mes`} accent />
+                    <FinancingRow label={`Opción de compra (${payment.buyout_pct}%)`}         value={arsVal(totals.total * (payment.buyout_pct ?? 10) / 100)} />
+                    {totals.total_financed && <FinancingRow label="Total leasing"             value={arsVal(totals.total_financed)} />}
                   </>
                 )}
               </div>

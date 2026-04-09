@@ -22,6 +22,8 @@ interface SavedQuotesStore {
   updateStatus: (id: string, status: QuoteStatus) => void
   remove: (id: string) => void
   getByStatus: (status?: QuoteStatus) => SavedQuote[]
+  hydrate: (quotes: SavedQuote[]) => void
+  clear: () => void
 }
 
 export const useSavedQuotesStore = create<SavedQuotesStore>()(
@@ -49,6 +51,10 @@ export const useSavedQuotesStore = create<SavedQuotesStore>()(
         const all = get().quotes
         return status ? all.filter(q => q.status === status) : all
       },
+
+      hydrate: (quotes) => set({ quotes }),
+
+      clear: () => set({ quotes: [] }),
     }),
     { name: 'agrocotizar-quotes' }
   )

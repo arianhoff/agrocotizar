@@ -33,7 +33,8 @@ export function computePaymentOptions(quote: Quote): PaymentOption[] {
 // ─── WhatsApp & Email helpers ─────────────────────────────────
 
 export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
-  const sym = (n: number) => (quote.currency === 'USD' ? 'U$S ' : '$ ') + fmt(n)
+  const arsDisplay = (usd: number) => `$ ${fmt(Math.round(usd * quote.exchange_rate))}`
+  const usdDisplay = (usd: number) => `U$S ${fmt(usd)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
@@ -55,7 +56,7 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   if (quote.items.length > 0) {
     lines.push('*Equipos cotizados:*')
     quote.items.forEach(item => {
-      lines.push(`• ${item.description} — ${sym(item.unit_price)}${item.quantity > 1 ? ` × ${item.quantity}` : ''}`)
+      lines.push(`• ${item.description} — ${arsDisplay(item.unit_price)}${item.quantity > 1 ? ` × ${item.quantity}` : ''}`)
     })
     lines.push('')
   }
@@ -64,12 +65,10 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   options.forEach((opt, i) => {
     const icon = i === 0 ? '✅' : '📋'
     const desc = opt.discount > 0 ? ` (${opt.discount}% dto)` : ''
-    lines.push(`${icon} ${opt.label}${desc}: ${sym(opt.total)}`)
+    lines.push(`${icon} ${opt.label}${desc}: ${arsDisplay(opt.total)} (${usdDisplay(opt.total)})`)
   })
 
-  if (quote.currency === 'USD') {
-    lines.push(`_TC: $${quote.exchange_rate.toLocaleString('es-AR')} Dólar BNA vendedor_`)
-  }
+  lines.push(`_TC: $${quote.exchange_rate.toLocaleString('es-AR')} Dólar BNA vendedor_`)
 
   lines.push('')
   lines.push('Consultas: consultas@gergolet.com.ar')
@@ -198,6 +197,8 @@ const PAYMENT_LABEL: Record<string, string> = {
 
 function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
   const { client, currency, payment, taxes, delivery } = quote
+  const ars = (usd: number) => `$ ${fmt(Math.round(usd * quote.exchange_rate))}`
+  const usd = (n: number) => `U$S ${fmt(n)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
@@ -238,12 +239,12 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
             {payment.mode === 'cheques' && payment.num_checks && <View style={S.row}><Text style={S.label}>Valores</Text><Text style={S.value}>{payment.num_checks} cheques diferidos</Text></View>}
             {payment.mode === 'financiado' && <>
               <View style={S.row}><Text style={S.label}>Anticipo</Text><Text style={S.value}>{payment.deposit_pct}%</Text></View>
-              <View style={S.row}><Text style={S.label}>Cuotas</Text><Text style={S.value}>{payment.installments} × {sym(totals.installment_amount ?? 0, currency)}/mes</Text></View>
+              <View style={S.row}><Text style={S.label}>Cuotas</Text><Text style={S.value}>{payment.installments} × {ars(totals.installment_amount ?? 0)}/mes</Text></View>
               {payment.financial_entity && <View style={S.row}><Text style={S.label}>Entidad</Text><Text style={S.value}>{payment.financial_entity}</Text></View>}
             </>}
             {payment.mode === 'leasing' && <>
               <View style={S.row}><Text style={S.label}>Plazo</Text><Text style={S.value}>{payment.lease_term_months} meses</Text></View>
-              <View style={S.row}><Text style={S.label}>Canon</Text><Text style={S.value}>{sym(totals.installment_amount ?? 0, currency)}/mes</Text></View>
+              <View style={S.row}><Text style={S.label}>Canon</Text><Text style={S.value}>{ars(totals.installment_amount ?? 0)}/mes</Text></View>
             </>}
             <View style={S.row}><Text style={S.label}>Entrega</Text><Text style={S.value}>{delivery.location === 'planta' ? 'En planta' : delivery.location === 'campo' ? 'En campo' : 'A acordar'}</Text></View>
             {delivery.estimated_days && <View style={S.row}><Text style={S.label}>Plazo</Text><Text style={S.value}>{delivery.estimated_days}</Text></View>}
@@ -267,11 +268,11 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
               <Text style={[S.tableCell, { flex: 3 }]}>{item.description}</Text>
               <Text style={[S.tableCell, { flex: 1, color: '#8B9BAA' }]}>{item.category}</Text>
               <Text style={[S.tableCellRight, { width: 35 }]}>{item.quantity}</Text>
-              <Text style={[S.tableCellRight, { width: 70 }]}>{sym(item.unit_price, currency)}</Text>
+              <Text style={[S.tableCellRight, { width: 70 }]}>{ars(item.unit_price)}</Text>
               <Text style={[S.tableCellRight, { width: 40, color: item.discount_pct > 0 ? '#C0392B' : '#8B9BAA' }]}>
                 {item.discount_pct > 0 ? `${item.discount_pct}%` : '—'}
               </Text>
-              <Text style={[S.tableCellTrigo, { width: 75 }]}>{sym(sub, currency)}</Text>
+              <Text style={[S.tableCellTrigo, { width: 75 }]}>{ars(sub)}</Text>
             </View>
           )
         })}
@@ -279,28 +280,26 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         {/* ── Totals ── */}
         <View style={S.totalsBox}>
           {totals.item_discounts > 0 && (
-            <><View style={S.totalLine}><Text style={S.totalLabel}>Subtotal bruto</Text><Text style={S.totalValue}>{sym(totals.gross, currency)}</Text></View>
-              <View style={S.totalLine}><Text style={S.totalLabel}>Desc. por ítem</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {sym(totals.item_discounts, currency)}</Text></View></>
+            <><View style={S.totalLine}><Text style={S.totalLabel}>Subtotal bruto</Text><Text style={S.totalValue}>{ars(totals.gross)}</Text></View>
+              <View style={S.totalLine}><Text style={S.totalLabel}>Desc. por ítem</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {ars(totals.item_discounts)}</Text></View></>
           )}
           {totals.general_discounts > 0 && (
-            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. generales</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {sym(totals.general_discounts, currency)}</Text></View>
+            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. generales</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {ars(totals.general_discounts)}</Text></View>
           )}
           {totals.payment_discount > 0 && (
-            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. {PAYMENT_LABEL[payment.mode]}</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {sym(totals.payment_discount, currency)}</Text></View>
+            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. {PAYMENT_LABEL[payment.mode]}</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {ars(totals.payment_discount)}</Text></View>
           )}
-          {totals.freight > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>Flete</Text><Text style={S.totalValue}>{sym(totals.freight, currency)}</Text></View>}
-          {totals.iibb > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>IIBB</Text><Text style={S.totalValue}>{sym(totals.iibb, currency)}</Text></View>}
-          {totals.iva > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>IVA ({taxes.iva_pct}%)</Text><Text style={S.totalValue}>{sym(totals.iva, currency)}</Text></View>}
+          {totals.freight > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>Flete</Text><Text style={S.totalValue}>{ars(totals.freight)}</Text></View>}
+          {totals.iibb > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>IIBB</Text><Text style={S.totalValue}>{ars(totals.iibb)}</Text></View>}
+          {totals.iva > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>IVA ({taxes.iva_pct}%)</Text><Text style={S.totalValue}>{ars(totals.iva)}</Text></View>}
           <View style={S.grandTotalLine}>
             <Text style={S.grandLabel}>TOTAL</Text>
-            <Text style={S.grandValue}>{sym(totals.total, currency)}</Text>
+            <Text style={S.grandValue}>{ars(totals.total)}</Text>
           </View>
-          {currency === 'USD' && totals.total_ars && (
-            <View style={[S.totalLine, { marginTop: 4 }]}>
-              <Text style={[S.totalLabel, { fontSize: 7 }]}>≈ Pesos (TC ${quote.exchange_rate.toLocaleString('es-AR')})</Text>
-              <Text style={[S.totalValue, { fontSize: 7 }]}>$ {fmt(totals.total_ars)}</Text>
-            </View>
-          )}
+          <View style={[S.totalLine, { marginTop: 4 }]}>
+            <Text style={[S.totalLabel, { fontSize: 7 }]}>Equivalente USD (TC ${quote.exchange_rate.toLocaleString('es-AR')})</Text>
+            <Text style={[S.totalValue, { fontSize: 7 }]}>{usd(totals.total)}</Text>
+          </View>
         </View>
 
         {/* ── Financing simulation ── */}
@@ -309,16 +308,16 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
             <Text style={S.paymentTitle}>SIMULACIÓN DE {payment.mode === 'leasing' ? 'LEASING' : 'FINANCIAMIENTO'}</Text>
             {payment.mode === 'financiado' && totals.deposit !== undefined && (
               <View>
-                <View style={S.totalLine}><Text style={S.totalLabel}>Anticipo ({payment.deposit_pct}%)</Text><Text style={S.totalValue}>{sym(totals.deposit, currency)}</Text></View>
-                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.installments} cuotas de</Text><Text style={[S.totalValue, { color: '#4A6741' }]}>{sym(totals.installment_amount, currency)}/mes</Text></View>
-                {totals.total_financed && <View style={S.totalLine}><Text style={S.totalLabel}>Total financiado</Text><Text style={S.totalValue}>{sym(totals.total_financed, currency)}</Text></View>}
+                <View style={S.totalLine}><Text style={S.totalLabel}>Anticipo ({payment.deposit_pct}%)</Text><Text style={S.totalValue}>{ars(totals.deposit)}</Text></View>
+                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.installments} cuotas de</Text><Text style={[S.totalValue, { color: '#4A6741' }]}>{ars(totals.installment_amount)}/mes</Text></View>
+                {totals.total_financed && <View style={S.totalLine}><Text style={S.totalLabel}>Total financiado</Text><Text style={S.totalValue}>{ars(totals.total_financed)}</Text></View>}
               </View>
             )}
             {payment.mode === 'leasing' && (
               <View>
-                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.lease_term_months} cánones de</Text><Text style={[S.totalValue, { color: '#4A6741' }]}>{sym(totals.installment_amount, currency)}/mes</Text></View>
-                <View style={S.totalLine}><Text style={S.totalLabel}>Opción de compra ({payment.buyout_pct}%)</Text><Text style={S.totalValue}>{sym(totals.total * (payment.buyout_pct ?? 10) / 100, currency)}</Text></View>
-                {totals.total_financed && <View style={S.totalLine}><Text style={S.totalLabel}>Total leasing</Text><Text style={S.totalValue}>{sym(totals.total_financed, currency)}</Text></View>}
+                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.lease_term_months} cánones de</Text><Text style={[S.totalValue, { color: '#4A6741' }]}>{ars(totals.installment_amount)}/mes</Text></View>
+                <View style={S.totalLine}><Text style={S.totalLabel}>Opción de compra ({payment.buyout_pct}%)</Text><Text style={S.totalValue}>{ars(totals.total * (payment.buyout_pct ?? 10) / 100)}</Text></View>
+                {totals.total_financed && <View style={S.totalLine}><Text style={S.totalLabel}>Total leasing</Text><Text style={S.totalValue}>{ars(totals.total_financed)}</Text></View>}
               </View>
             )}
           </View>
@@ -329,8 +328,8 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         <View style={S.cmpHeader}>
           <Text style={[S.cmpHeaderText, { flex: 2 }]}>MODALIDAD</Text>
           <Text style={[S.cmpHeaderText, { width: 60, textAlign: 'center' }]}>DESCUENTO</Text>
-          <Text style={[S.cmpHeaderText, { width: 90, textAlign: 'right' }]}>TOTAL USD</Text>
-          {currency === 'USD' && <Text style={[S.cmpHeaderText, { width: 90, textAlign: 'right' }]}>TOTAL PESOS ~</Text>}
+          <Text style={[S.cmpHeaderText, { width: 90, textAlign: 'right' }]}>TOTAL PESOS</Text>
+          <Text style={[S.cmpHeaderText, { width: 80, textAlign: 'right' }]}>TOTAL USD</Text>
         </View>
         {paymentOptions.map((opt, i) => {
           const isSelected = payment.mode === (i === 0 ? 'contado' : 'cheques') && payment.discount_pct === opt.discount
@@ -342,14 +341,14 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
                 <Text style={{ fontSize: 7, color: '#8B9BAA', marginLeft: 4 }}>{opt.detail}</Text>
               </View>
               <Text style={[S.cmpDiscount, { width: 60 }]}>{opt.discount > 0 ? `${opt.discount}%` : '—'}</Text>
-              <Text style={[S.cmpCellGold, { width: 90 }]}>{sym(opt.total, 'USD')}</Text>
-              {currency === 'USD' && <Text style={[S.cmpCellGray, { width: 90 }]}>$ {fmt(opt.total_ars)}</Text>}
+              <Text style={[S.cmpCellGold, { width: 90 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
+              <Text style={[S.cmpCellGray, { width: 80 }]}>{usd(opt.total)}</Text>
             </View>
           )
         })}
         <View style={{ marginTop: 4, paddingHorizontal: 8 }}>
           <Text style={{ fontSize: 7, color: '#8B9BAA' }}>
-            Todos los precios en USD incluyen IVA 10,5%. Pesos calculados al TC ${quote.exchange_rate.toLocaleString('es-AR')} Dólar BNA vendedor.
+            Precios en pesos argentinos. TC Dólar BNA vendedor: ${quote.exchange_rate.toLocaleString('es-AR')}. Incluye IVA 10,5%.
           </Text>
         </View>
 
@@ -364,8 +363,8 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         {/* ── Legal note ── */}
         <View style={[S.notesBox, { marginTop: 10, backgroundColor: '#FFF9F0', borderColor: '#C8952A' }]}>
           <Text style={[S.notesText, { color: '#8B6A20', fontSize: 7 }]}>
-            Los precios incluyen IVA 10,5%. Precios en USD al tipo de cambio Dólar BNA vendedor al momento del pago.
-            GEA se reserva el derecho de modificar precios sin previo aviso. Oferta válida por {quote.valid_days} días.
+            Los precios se expresan en pesos argentinos al TC Dólar BNA vendedor ${quote.exchange_rate.toLocaleString('es-AR')}. Los valores en USD son de referencia.
+            Precios incluyen IVA 10,5%. GEA se reserva el derecho de modificar precios sin previo aviso. Oferta válida por {quote.valid_days} días.
           </Text>
         </View>
 

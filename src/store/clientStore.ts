@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { supabase } from '@/lib/supabase/client'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
@@ -30,6 +31,20 @@ interface ClientStore {
   updateClient: (id: string, patch: Partial<Client>) => void
   deleteClient: (id: string) => void
   getClient: (id: string) => Client | undefined
+  hydrate: (clients: Client[]) => void
+  clear: () => void
+}
+
+// Fire-and-forget Supabase write — never throws
+function syncClient(client: Client) {
+  const { id, name, cuit, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date } = client
+  supabase.from('clients')
+    .upsert({ id, name, cuit, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date })
+    .then()
+}
+
+function deleteClientRemote(id: string) {
+  supabase.from('clients').delete().eq('id', id).then()
 }
 
 export const useClientStore = create<ClientStore>()(
@@ -46,6 +61,7 @@ export const useClientStore = create<ClientStore>()(
           : all.findIndex(c => c.name.toLowerCase() === name.toLowerCase())
 
         const now = new Date().toISOString()
+        let result: Client
         if (idx >= 0) {
           const updated = [...all]
           updated[idx] = {
@@ -61,9 +77,10 @@ export const useClientStore = create<ClientStore>()(
             last_quote_date: quote_date,
             updated_at: now,
           }
+          result = updated[idx]
           set({ clients: updated })
         } else {
-          const newClient: Client = {
+          result = {
             id: uid(),
             name, cuit, province, city, phone, email,
             quote_count: 1,
@@ -72,17 +89,29 @@ export const useClientStore = create<ClientStore>()(
             created_at: now,
             updated_at: now,
           }
-          set(s => ({ clients: [newClient, ...s.clients] }))
+          set(s => ({ clients: [result, ...s.clients] }))
         }
+        syncClient(result)
       },
 
-      updateClient: (id, patch) => set(s => ({
-        clients: s.clients.map(c => c.id === id ? { ...c, ...patch, updated_at: new Date().toISOString() } : c),
-      })),
+      updateClient: (id, patch) => {
+        set(s => ({
+          clients: s.clients.map(c => c.id === id ? { ...c, ...patch, updated_at: new Date().toISOString() } : c),
+        }))
+        const updated = get().clients.find(c => c.id === id)
+        if (updated) syncClient(updated)
+      },
 
-      deleteClient: (id) => set(s => ({ clients: s.clients.filter(c => c.id !== id) })),
+      deleteClient: (id) => {
+        set(s => ({ clients: s.clients.filter(c => c.id !== id) }))
+        deleteClientRemote(id)
+      },
 
       getClient: (id) => get().clients.find(c => c.id === id),
+
+      hydrate: (clients) => set({ clients }),
+
+      clear: () => set({ clients: [] }),
     }),
     { name: 'agrocotizar-clients' }
   )

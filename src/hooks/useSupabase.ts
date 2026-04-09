@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase/client'
-import type { Quote, User } from '@/types'
+import type { Quote, QuoteStatus } from '@/types'
 import { useSavedQuotesStore, type SavedQuote } from '@/store/savedQuotesStore'
 
 // ─── Auth ─────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ export function useSignOut() {
   })
 }
 
-// ─── Quotes (local-first, Supabase optional) ──────────────────
+// ─── Quotes ───────────────────────────────────────────────────
 
 export function useQuotes(filters?: { status?: string; limit?: number }) {
   const store = useSavedQuotesStore()
@@ -60,13 +60,13 @@ export function useSaveQuote() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [isError, setIsError] = useState(false)
 
-  const mutate = (quote: Quote) => {
+  const mutate = async (quote: Quote) => {
     setIsPending(true)
     setIsSuccess(false)
     setIsError(false)
     try {
       const now = new Date().toISOString()
-      store.upsert({
+      const saved: SavedQuote = {
         id: quote.id,
         quote_number: quote.quote_number,
         status: quote.status,
@@ -78,7 +78,28 @@ export function useSaveQuote() {
         data: quote as any,
         created_at: quote.created_at ?? now,
         updated_at: now,
+      }
+      // Local store (optimistic)
+      store.upsert(saved)
+
+      // Supabase (background write)
+      const { client: _c, ...quoteData } = quote as any
+      supabase.from('quotes').upsert({
+        id: saved.id,
+        quote_number: saved.quote_number,
+        status: saved.status,
+        currency: saved.currency,
+        exchange_rate: saved.exchange_rate,
+        total: saved.total,
+        valid_days: saved.valid_days,
+        notes: saved.notes,
+        data: quote,
+        created_at: saved.created_at,
+        updated_at: saved.updated_at,
+      }).then(({ error }) => {
+        if (error) console.warn('[Supabase] Error saving quote:', error.message)
       })
+
       setIsSuccess(true)
     } catch {
       setIsError(true)
@@ -93,8 +114,12 @@ export function useSaveQuote() {
 export function useUpdateQuoteStatus() {
   const store = useSavedQuotesStore()
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: Quote['status'] }) => {
+    mutationFn: async ({ id, status }: { id: string; status: QuoteStatus }) => {
       store.updateStatus(id, status)
+      // Background Supabase update
+      supabase.from('quotes').update({ status, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+        if (error) console.warn('[Supabase] Error updating quote status:', error.message)
+      })
       return { id, status }
     },
   })
@@ -105,6 +130,9 @@ export function useDeleteQuote() {
   return useMutation({
     mutationFn: async (id: string) => {
       store.remove(id)
+      supabase.from('quotes').delete().eq('id', id).then(({ error }) => {
+        if (error) console.warn('[Supabase] Error deleting quote:', error.message)
+      })
     },
   })
 }
@@ -133,5 +161,25 @@ export function useUpsertClient() {
       return data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['clients'] }),
+  })
+}
+
+// ─── Profile / Settings ───────────────────────────────────────
+
+export function useLoadProfile() {
+  return useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('settings, email')
+        .eq('id', user.id)
+        .single()
+      if (error) return null
+      return data
+    },
+    staleTime: Infinity,
   })
 }

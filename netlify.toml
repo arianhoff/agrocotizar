@@ -19,8 +19,39 @@
   to = "/.netlify/functions/bcra-proxy/:splat"
   status = 200
 
+# Proxy ARCA/AFIP Padrón API (CORS workaround)
+[[redirects]]
+  from = "/api/afip/*"
+  to = "/.netlify/functions/afip-proxy/:splat"
+  status = 200
+
 # SPA fallback — todas las rutas van a index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ─── Security Headers ─────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Prevent clickjacking
+    X-Frame-Options = "DENY"
+    # Prevent MIME-type sniffing
+    X-Content-Type-Options = "nosniff"
+    # XSS protection (legacy browsers)
+    X-XSS-Protection = "1; mode=block"
+    # Don't leak referrer to third-party sites
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Force HTTPS for 1 year (includeSubDomains)
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # Permissions policy: restrict sensors, camera, mic to same-origin
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=(), payment=()"
+    # Content Security Policy
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://dolarapi.com; worker-src blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+# Cache static assets aggressively
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -3,9 +3,10 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@/utils'
 import {
-  FileText, LayoutDashboard, Settings, Package, Users, PlusCircle, CalendarCheck, LogOut, Menu, X
+  FileText, LayoutDashboard, Settings, Package, Users, PlusCircle, CalendarCheck, LogOut, Menu, X, Search, Mic, Lock
 } from 'lucide-react'
-import { logout } from '@/pages/auth/LoginPage'
+import { supabase } from '@/lib/supabase/client'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -14,12 +15,18 @@ const NAV = [
   { to: '/crm',       icon: CalendarCheck,   label: 'Seguimientos' },
   { to: '/catalog',   icon: Package,         label: 'Lista de precios' },
   { to: '/clients',   icon: Users,           label: 'Clientes' },
+  { to: '/cuit',      icon: Search,          label: 'Verificar CUIT' },
   { to: '/settings',  icon: Settings,        label: 'Configuración' },
+]
+
+const NAV_COMING_SOON = [
+  { icon: Mic, label: 'Cotizar por voz' },
 ]
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const company = useSettingsStore(s => s.company)
 
   const navLinks = (
     <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -42,6 +49,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Link>
         )
       })}
+
+      {/* Coming soon items */}
+      {NAV_COMING_SOON.map(({ icon: Icon, label }) => (
+        <div
+          key={label}
+          title="Próximamente"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-white/25 cursor-not-allowed select-none"
+        >
+          <Icon size={16} />
+          <span className="flex-1">{label}</span>
+          <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-white/[0.06] border border-white/[0.08]">
+            <Lock size={9} className="text-white/30" />
+            <span className="text-[9px] text-white/30 font-semibold tracking-wide uppercase">Pronto</span>
+          </div>
+        </div>
+      ))}
     </nav>
   )
 
@@ -49,16 +72,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
     <div className="w-64 bg-[#1E2235] flex flex-col h-full">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-white/[0.07] flex items-center justify-between flex-shrink-0">
-        <div>
-          <div className="text-[22px] font-bold text-white tracking-tight leading-none">
-            Agro<span className="text-[#22C55E]">Cotizar</span>
-          </div>
-          <div className="text-[10px] text-white/40 tracking-widest uppercase mt-1 font-mono">
-            Maquinaria Agrícola
-          </div>
+        <div className="flex-1 min-w-0">
+          {company.logo_base64 ? (
+            <img
+              src={company.logo_base64}
+              alt={company.name || 'Logo'}
+              className="h-10 max-w-[160px] object-contain"
+            />
+          ) : (
+            <>
+              <div className="text-[22px] font-bold text-white tracking-tight leading-none">
+                {company.name
+                  ? <span className="text-[#22C55E]">{company.name}</span>
+                  : <span>Agro<span className="text-[#22C55E]">Cotizar</span></span>
+                }
+              </div>
+              <div className="text-[10px] text-white/40 tracking-widest uppercase mt-1 font-mono">
+                Maquinaria Agrícola
+              </div>
+            </>
+          )}
         </div>
         {onClose && (
-          <button onClick={onClose} className="text-white/40 hover:text-white/80 transition-colors cursor-pointer p-1">
+          <button onClick={onClose} className="text-white/40 hover:text-white/80 transition-colors cursor-pointer p-1 ml-2">
             <X size={18} />
           </button>
         )}
@@ -77,7 +113,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="text-[11px] text-white/40">Sistema de cotización</div>
           </div>
           <button
-            onClick={() => { logout(); window.location.reload() }}
+            onClick={() => supabase.auth.signOut()}
             title="Cerrar sesión"
             className="text-white/30 hover:text-white/70 transition-colors cursor-pointer shrink-0"
           >
@@ -120,7 +156,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <Menu size={22} />
           </button>
           <div className="text-[18px] font-bold text-[#0F172A] tracking-tight">
-            Agro<span className="text-[#22C55E]">Cotizar</span>
+            {company.logo_base64
+              ? <img src={company.logo_base64} alt={company.name || 'Logo'} className="h-8 max-w-[140px] object-contain" />
+              : company.name
+                ? <span className="text-[#22C55E]">{company.name}</span>
+                : <span>Agro<span className="text-[#22C55E]">Cotizar</span></span>
+            }
           </div>
         </div>
 

@@ -8,6 +8,7 @@
 
 import { Agent, fetch as undiciFetch } from 'undici'
 import type { Handler } from '@netlify/functions'
+import { getCorsHeaders } from './_cors'
 
 // Agent with browser-like TLS settings to bypass BCRA JA3 fingerprinting
 const agent = new Agent({
@@ -28,14 +29,34 @@ const agent = new Agent({
   },
 })
 
+// Whitelist of BCRA paths this proxy is allowed to forward
+const ALLOWED_PATHS = /^\/(centraldedeudores|estadisticas|v[0-9]+)\//
+
 export const handler: Handler = async (event) => {
+  const origin = event.headers.origin ?? event.headers.Origin ?? ''
+  const cors = getCorsHeaders(origin)
+
+  // Only allow GET
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'OPTIONS') {
+    return { statusCode: 405, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Method not allowed' }) }
+  }
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: cors, body: '' }
+  }
+
   const path = event.path.replace(/^\/.netlify\/functions\/bcra-proxy/, '') || '/'
   const query = event.rawQuery ? `?${event.rawQuery}` : ''
+
+  // Only forward to whitelisted BCRA paths
+  if (!ALLOWED_PATHS.test(path)) {
+    return { statusCode: 400, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Path not allowed' }) }
+  }
+
   const url = `https://api.bcra.gob.ar${path}${query}`
 
   try {
     const upstream = await undiciFetch(url, {
-      method: (event.httpMethod as 'GET') ?? 'GET',
+      method: 'GET',
       headers: {
         Accept: 'application/json',
         'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
@@ -59,8 +80,8 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: upstream.status,
       headers: {
+        ...cors,
         'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
-        'Access-Control-Allow-Origin': '*',
       },
       body,
     }
@@ -68,7 +89,7 @@ export const handler: Handler = async (event) => {
     const msg = (err as Error).message ?? String(err)
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: `BCRA proxy error: ${msg}` }),
     }
   }

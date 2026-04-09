@@ -35,6 +35,12 @@ export type ProductCategory =
   | 'Pulverizadora'
   | 'Servicio / Mano de obra'
 
+export interface PaymentConditionTemplate {
+  id: string
+  label: string           // "Contado transferencia", "Cheques 3 valores", etc.
+  condition: PaymentCondition
+}
+
 export interface PriceList {
   id: string
   tenant_id: string
@@ -47,6 +53,7 @@ export interface PriceList {
   iva_included: boolean
   iva_rate: number      // 10.5
   created_at: string
+  payment_conditions?: PaymentConditionTemplate[]
 }
 
 export interface Product {
@@ -100,10 +107,12 @@ export interface PaymentCondition {
 export interface QuoteClient {
   name: string
   cuit?: string
+  address?: string
   province?: string
   city?: string
   phone?: string
   email?: string
+  iva_condition?: string   // Responsable Inscripto, Monotributista, etc.
 }
 
 export interface QuoteItem {

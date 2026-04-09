@@ -12,14 +12,15 @@ const CATEGORIES: ProductCategory[] = [
   'Repuesto / Accesorio', 'Servicio / Mano de obra',
 ]
 
-export function ItemsTable() {
+export function ItemsTable({ priceListId }: { priceListId?: string | null }) {
   const { quote, addItem, updateItem, removeItem } = useQuoteStore()
-  const { getAllProducts, getOptionsByProduct } = useCatalogStore()
+  const { getAllProducts, getProductsByList, getOptionsByProduct } = useCatalogStore()
   const { items, currency, exchange_rate } = quote
   const sym = currency === 'USD' ? 'U$S' : '$'
   const [expandedOptions, setExpandedOptions] = useState<string | null>(null)
 
-  const allProducts = getAllProducts()
+  // If a price list is selected, only show products from that list
+  const allProducts = priceListId ? getProductsByList(priceListId) : getAllProducts()
 
   /** Convierte un precio al currency de la cotización */
   function convertPrice(price: number, fromCurrency: 'USD' | 'ARS'): number {
@@ -130,11 +131,11 @@ export function ItemsTable() {
 
                   {/* Unit price */}
                   <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[#64748B]">{sym}</span>
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[#64748B]">$</span>
                     <input
                       type="number"
-                      value={item.unit_price}
-                      onChange={e => updateItem(item.id, { unit_price: Number(e.target.value) })}
+                      value={exchange_rate > 0 ? Math.round(item.unit_price * exchange_rate) : item.unit_price}
+                      onChange={e => updateItem(item.id, { unit_price: exchange_rate > 0 ? Number(e.target.value) / exchange_rate : Number(e.target.value) })}
                       min={0}
                       className="w-full bg-white border border-[#E2E8F0] rounded-lg text-[#0F172A] text-sm pl-8 pr-2 py-1.5 outline-none focus:border-[#22C55E]"
                     />
@@ -151,7 +152,7 @@ export function ItemsTable() {
 
                   {/* Subtotal */}
                   <span className="text-[13px] text-[#22C55E] font-semibold text-right whitespace-nowrap">
-                    {sym} {fmt(subtotal)}
+                    $ {fmt(exchange_rate > 0 ? subtotal * exchange_rate : subtotal)}
                   </span>
 
                   {/* Actions */}
@@ -189,7 +190,7 @@ export function ItemsTable() {
                         >
                           <Plus size={10} className="text-[#22C55E]" />
                           <span className="text-[11px] text-[#64748B] group-hover:text-[#0F172A] transition-colors">{opt.name}</span>
-                          <Badge variant="trigo" className="text-[10px]">{sym} {opt.price.toLocaleString('es-AR')}</Badge>
+                          <Badge variant="trigo" className="text-[10px]">$ {Math.round((opt as any).currency === 'ARS' ? opt.price : exchange_rate > 0 ? opt.price * exchange_rate : opt.price).toLocaleString('es-AR')}</Badge>
                           {!opt.requires_commission && <Badge variant="acero" className="text-[9px]">sin comisión</Badge>}
                         </button>
                       ))}

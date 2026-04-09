@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage } from 'lucide-react'
+import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage, CreditCard } from 'lucide-react'
 import { useCatalogStore, type CsvRow } from '@/store/catalogStore'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card, Button, Badge, FieldGroup, Label, Input, Select } from '@/components/ui'
@@ -8,7 +8,7 @@ import {
   type CatalogDiff, type ProductDiff, type OptionDiff, type ExtractionProgress,
 } from '@/lib/ai/catalogExtraction'
 import { fmt } from '@/utils'
-import type { PriceList, Product, ProductOption, ProductCategory } from '@/types'
+import type { PriceList, Product, ProductOption, ProductCategory, PaymentConditionTemplate, PaymentMode } from '@/types'
 
 const UPLOAD_STEPS = ['Leyendo archivo...', 'Enviando a IA...', 'Comparando con lista actual...']
 
@@ -916,12 +916,164 @@ function DiffModal({
   )
 }
 
+// ─── Payment Conditions Section ───────────────────────────────────────────────
+const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
+  contado: 'Contado',
+  cheques: 'Cheques',
+  financiado: 'Financiado',
+  leasing: 'Leasing',
+}
+
+function PaymentConditionsSection({ priceListId }: { priceListId: string }) {
+  const { priceLists, addPaymentCondition, removePaymentCondition } = useCatalogStore()
+  const pl = priceLists.find(p => p.id === priceListId)
+  const conditions = pl?.payment_conditions ?? []
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState<{ label: string; mode: PaymentMode; discount_pct: number; num_checks: number; deposit_pct: number; installments: number; monthly_rate: number }>({
+    label: '', mode: 'contado', discount_pct: 20, num_checks: 3, deposit_pct: 30, installments: 12, monthly_rate: 0,
+  })
+
+  function handleAdd() {
+    if (!form.label) return
+    const condition = form.mode === 'contado'
+      ? { mode: form.mode as PaymentMode, discount_pct: form.discount_pct }
+      : form.mode === 'cheques'
+      ? { mode: form.mode as PaymentMode, discount_pct: form.discount_pct, num_checks: form.num_checks }
+      : form.mode === 'financiado'
+      ? { mode: form.mode as PaymentMode, discount_pct: 0, deposit_pct: form.deposit_pct, installments: form.installments, monthly_rate: form.monthly_rate }
+      : { mode: form.mode as PaymentMode, discount_pct: 0, deposit_pct: form.deposit_pct }
+    addPaymentCondition(priceListId, { label: form.label, condition })
+    setAdding(false)
+    setForm({ label: '', mode: 'contado', discount_pct: 20, num_checks: 3, deposit_pct: 30, installments: 12, monthly_rate: 0 })
+  }
+
+  return (
+    <div className="border-t border-[#E2E8F0] px-4 sm:px-6 py-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <CreditCard size={14} className="text-[#94A3B8]" />
+          <span className="text-[11px] font-bold tracking-widest uppercase text-[#94A3B8]">Condiciones de pago</span>
+          {conditions.length > 0 && (
+            <span className="text-[10px] text-[#CBD5E1]">{conditions.length}</span>
+          )}
+        </div>
+        <button
+          onClick={() => setAdding(a => !a)}
+          className="flex items-center gap-1.5 text-[11px] text-[#22C55E] hover:text-[#16A34A] cursor-pointer transition-colors"
+        >
+          <Plus size={12} /> Agregar
+        </button>
+      </div>
+
+      {/* Existing conditions */}
+      {conditions.length > 0 && (
+        <div className="space-y-1.5 mb-3">
+          {conditions.map(t => (
+            <div key={t.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] group">
+              <div className="flex-1 min-w-0">
+                <span className="text-[13px] font-medium text-[#0F172A]">{t.label}</span>
+                <span className="text-[11px] text-[#94A3B8] ml-2">
+                  {PAYMENT_MODE_LABELS[t.condition.mode]}
+                  {t.condition.discount_pct ? ` · ${t.condition.discount_pct}% desc.` : ''}
+                  {t.condition.num_checks ? ` · ${t.condition.num_checks} cheques` : ''}
+                  {t.condition.installments ? ` · ${t.condition.installments} cuotas` : ''}
+                </span>
+              </div>
+              <button
+                onClick={() => removePaymentCondition(priceListId, t.id)}
+                className="text-[#CBD5E1] hover:text-[#EF4444] transition-colors cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add form */}
+      {adding && (
+        <div className="p-4 rounded-xl bg-[#F0FDF4] border border-[#22C55E]/20 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Label>Nombre de la condición</Label>
+              <Input
+                value={form.label}
+                onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
+                placeholder='Ej: "Contado efectivo", "3 cheques 90 días"'
+                className="text-sm"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label>Modalidad</Label>
+              <Select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value as PaymentMode }))}>
+                <option value="contado">Contado</option>
+                <option value="cheques">Cheques diferidos</option>
+                <option value="financiado">Financiado</option>
+                <option value="leasing">Leasing</option>
+              </Select>
+            </div>
+            {(form.mode === 'contado' || form.mode === 'cheques') && (
+              <div>
+                <Label>Descuento %</Label>
+                <Input type="number" value={form.discount_pct} min={0} max={100} step={0.5}
+                  onChange={e => setForm(f => ({ ...f, discount_pct: Number(e.target.value) }))} />
+              </div>
+            )}
+            {form.mode === 'cheques' && (
+              <div>
+                <Label>Cantidad de cheques</Label>
+                <Input type="number" value={form.num_checks} min={1} max={24}
+                  onChange={e => setForm(f => ({ ...f, num_checks: Number(e.target.value) }))} />
+              </div>
+            )}
+            {(form.mode === 'financiado' || form.mode === 'leasing') && (
+              <>
+                <div>
+                  <Label>Anticipo %</Label>
+                  <Input type="number" value={form.deposit_pct} min={0} max={100} step={5}
+                    onChange={e => setForm(f => ({ ...f, deposit_pct: Number(e.target.value) }))} />
+                </div>
+                {form.mode === 'financiado' && (
+                  <>
+                    <div>
+                      <Label>Cuotas</Label>
+                      <Select value={form.installments} onChange={e => setForm(f => ({ ...f, installments: Number(e.target.value) }))}>
+                        {[3, 6, 12, 18, 24, 36, 48, 60].map(n => <option key={n} value={n}>{n}</option>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Tasa mensual %</Label>
+                      <Input type="number" value={form.monthly_rate} min={0} step={0.1}
+                        onChange={e => setForm(f => ({ ...f, monthly_rate: Number(e.target.value) }))} />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="primary" onClick={handleAdd} disabled={!form.label}>Guardar condición</Button>
+            <Button variant="ghost" onClick={() => setAdding(false)}>Cancelar</Button>
+          </div>
+        </div>
+      )}
+
+      {conditions.length === 0 && !adding && (
+        <p className="text-[11px] text-[#94A3B8]">
+          Sin condiciones — agregá las condiciones de pago de esta lista para pre-cargarlas al cotizar.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export function CatalogPage() {
-  const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions } = useCatalogStore()
+  const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition } = useCatalogStore()
   const [showNewModal, setShowNewModal] = useState(false)
   const [showAdjustModal, setShowAdjustModal] = useState(false)
-  const [diff, setDiff] = useState<CatalogDiff | null>(null)
+  const [diff, setDiff] = useState<{ catalog: CatalogDiff; paymentConditions: import('@/lib/ai/catalogExtraction').ExtractedPaymentCondition[] } | null>(null)
   const [uploadStep, setUploadStep] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [streamingProgress, setStreamingProgress] = useState<ExtractionProgress | null>(null)
@@ -960,7 +1112,7 @@ export function CatalogPage() {
       for (const p of products) {
         optionsByProductId[p.id] = (storeOptions[p.id] ?? []).map(o => ({ id: o.id, name: o.name, price: o.price }))
       }
-      setDiff(diffCatalog(result, products, optionsByProductId))
+      setDiff({ catalog: diffCatalog(result, products, optionsByProductId), paymentConditions: result.paymentConditions })
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Error al procesar el archivo')
     } finally {
@@ -1003,6 +1155,25 @@ export function CatalogPage() {
         })
       } else if (d.status === 'price_update') {
         updateOptionPrice(targetProduct.id, d.extracted.name, d.extracted.price)
+      }
+    }
+
+    // Save extracted payment conditions (only if list has none yet)
+    if (diff && diff.paymentConditions.length > 0 && (activeList.payment_conditions ?? []).length === 0) {
+      for (const pc of diff.paymentConditions) {
+        addPaymentCondition(activeList.id, {
+          label: pc.label,
+          condition: {
+            mode: pc.mode,
+            discount_pct: pc.discount_pct ?? 0,
+            num_checks: pc.num_checks,
+            deposit_pct: pc.deposit_pct,
+            installments: pc.installments,
+            monthly_rate: pc.monthly_rate,
+            lease_term_months: pc.lease_term_months,
+            buyout_pct: pc.buyout_pct,
+          },
+        })
       }
     }
 
@@ -1243,6 +1414,7 @@ export function CatalogPage() {
               })()}
 
               <AddMachineRow priceListId={activeList.id} />
+              <PaymentConditionsSection priceListId={activeList.id} />
             </Card>
           )}
         </div>
@@ -1255,7 +1427,7 @@ export function CatalogPage() {
       )}
       {diff && (
         <DiffModal
-          diff={diff}
+          diff={diff.catalog}
           onApply={handleApplyDiffs}
           onClose={() => setDiff(null)}
         />

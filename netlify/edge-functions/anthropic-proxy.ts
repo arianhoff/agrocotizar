@@ -8,23 +8,38 @@
  * never exposed to the browser.
  */
 
+// Netlify auto-injects URL env var with the primary site URL
+const ALLOWED_ORIGINS = [
+  Netlify.env.get('URL') ?? '',
+  'http://localhost:5173',
+  'http://localhost:4173',
+].filter(Boolean)
+
+function corsHeaders(origin: string): Record<string, string> {
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : (ALLOWED_ORIGINS[0] ?? '')
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  }
+}
+
 export default async function handler(req: Request): Promise<Response> {
+  const origin = req.headers.get('origin') ?? ''
+
   // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
+      headers: corsHeaders(origin),
     })
   }
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
     })
   }
 
@@ -33,7 +48,7 @@ export default async function handler(req: Request): Promise<Response> {
   if (!apiKey) {
     return new Response(
       JSON.stringify({ error: 'ANTHROPIC_API_KEY no configurada en el servidor.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) } }
     )
   }
 
@@ -53,8 +68,8 @@ export default async function handler(req: Request): Promise<Response> {
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
+      ...corsHeaders(origin),
       'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
-      'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-cache',
       'X-Accel-Buffering': 'no',
     },

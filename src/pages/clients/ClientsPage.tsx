@@ -7,7 +7,7 @@ import { cn } from '@/utils'
 import { fmt } from '@/utils'
 import {
   Users, Search, Phone, Mail, MapPin, FileText, Plus,
-  Pencil, Trash2, X, Check, Building2, Calendar, TrendingUp,
+  Pencil, Trash2, X, Check, MessageCircle,
 } from 'lucide-react'
 
 // ─── Edit / Create modal ──────────────────────────────────────────────────────
@@ -280,71 +280,146 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   )
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function timeAgo(dateStr?: string): string | null {
+  if (!dateStr) return null
+  const days = Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86_400_000)
+  if (days === 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  if (days < 7)  return `hace ${days} días`
+  if (days < 30) return `hace ${Math.floor(days / 7)} sem.`
+  if (days < 365) return `hace ${Math.floor(days / 30)} mes${Math.floor(days / 30) > 1 ? 'es' : ''}`
+  return `hace ${Math.floor(days / 365)} año${Math.floor(days / 365) > 1 ? 's' : ''}`
+}
+
+function activityLevel(dateStr?: string): 'hot' | 'warm' | 'cold' | 'none' {
+  if (!dateStr) return 'none'
+  const days = Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86_400_000)
+  if (days <= 30) return 'hot'
+  if (days <= 90) return 'warm'
+  return 'cold'
+}
+
+const ACTIVITY_DOT: Record<string, string> = {
+  hot:  'bg-[#22C55E]',
+  warm: 'bg-[#F59E0B]',
+  cold: 'bg-[#CBD5E1]',
+  none: 'bg-[#E2E8F0]',
+}
+
+const ACTIVITY_LABEL: Record<string, string> = {
+  hot:  'Activo',
+  warm: 'Inactivo',
+  cold: 'Frío',
+  none: '',
+}
+
 // ─── Client card ──────────────────────────────────────────────────────────────
 
 function ClientCard({ client, onClick }: { client: Client; onClick: () => void }) {
+  const activity = activityLevel(client.last_quote_date)
+  const ago      = timeAgo(client.last_quote_date)
+  const waPhone  = client.phone ? `54${client.phone.replace(/\D/g, '').replace(/^0/, '')}` : ''
+
   return (
     <div
       onClick={onClick}
-      className="bg-white border border-[#E2E8F0] rounded-xl p-5 cursor-pointer hover:border-[#22C55E]/40 hover:shadow-md transition-all group"
+      className="bg-white border border-[#E2E8F0] rounded-xl cursor-pointer hover:border-[#22C55E]/40 hover:shadow-lg transition-all group overflow-hidden flex flex-col"
     >
-      <div className="flex items-start gap-3 mb-3">
-        <div className="w-10 h-10 rounded-full bg-[#22C55E]/10 flex items-center justify-center shrink-0">
-          <span className="text-[#22C55E] text-[15px] font-bold">
-            {client.name.charAt(0).toUpperCase()}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold text-[#0F172A] truncate group-hover:text-[#22C55E] transition-colors">
-            {client.name}
-          </div>
-          {client.cuit && (
-            <div className="text-[11px] text-[#94A3B8] font-mono mt-0.5">{client.cuit}</div>
-          )}
-        </div>
-        <div className="text-right shrink-0">
-          <div className="text-[18px] font-bold text-[#0F172A]">{client.quote_count}</div>
-          <div className="text-[9px] text-[#94A3B8] uppercase tracking-wide">cotiz.</div>
-        </div>
-      </div>
+      {/* ── Main body ── */}
+      <div className="p-4 flex-1">
 
-      {/* Contact row */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
-        {client.phone && (
-          <div className="flex items-center gap-1.5">
-            <Phone size={11} className="text-[#22C55E]" />
-            <span className="text-[11px] text-[#64748B]">{client.phone}</span>
+        {/* Header: avatar + name + quote count */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Avatar with activity dot */}
+            <div className="relative shrink-0">
+              <div className="w-11 h-11 rounded-full bg-[#22C55E]/10 flex items-center justify-center">
+                <span className="text-[#22C55E] text-[16px] font-bold">
+                  {client.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${ACTIVITY_DOT[activity]}`}
+                title={ACTIVITY_LABEL[activity]}
+              />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-[14px] font-semibold text-[#0F172A] truncate group-hover:text-[#22C55E] transition-colors leading-tight">
+                {client.name}
+              </div>
+              {client.cuit
+                ? <div className="text-[11px] text-[#94A3B8] font-mono mt-0.5">{client.cuit}</div>
+                : <div className="text-[11px] text-[#CBD5E1] mt-0.5 italic">Sin CUIT</div>
+              }
+            </div>
           </div>
-        )}
-        {client.email && (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Mail size={11} className="text-[#3B82F6] shrink-0" />
-            <span className="text-[11px] text-[#64748B] truncate">{client.email}</span>
+
+          {/* Quote count */}
+          <div className="shrink-0 text-right">
+            <div className="text-[20px] font-bold text-[#0F172A] leading-none">{client.quote_count}</div>
+            <div className="text-[9px] text-[#94A3B8] uppercase tracking-wide mt-0.5">cotiz.</div>
           </div>
-        )}
+        </div>
+
+        {/* Location */}
         {(client.city || client.province) && (
-          <div className="flex items-center gap-1.5">
-            <MapPin size={11} className="text-[#F59E0B]" />
-            <span className="text-[11px] text-[#64748B]">{[client.city, client.province].filter(Boolean).join(', ')}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-2.5 border-t border-[#F1F5F9]">
-        {client.last_quote_number ? (
-          <div className="flex items-center gap-1.5">
-            <FileText size={11} className="text-[#94A3B8]" />
-            <span className="text-[11px] text-[#94A3B8]">Última: <span className="font-mono text-[#22C55E]">{client.last_quote_number}</span></span>
-          </div>
-        ) : <div />}
-        {client.last_quote_date && (
-          <div className="flex items-center gap-1">
-            <Calendar size={10} className="text-[#CBD5E1]" />
-            <span className="text-[10px] text-[#CBD5E1]">
-              {new Date(client.last_quote_date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+          <div className="flex items-center gap-1.5 mb-3">
+            <MapPin size={11} className="text-[#F59E0B] shrink-0" />
+            <span className="text-[12px] text-[#64748B] truncate">
+              {[client.city, client.province].filter(Boolean).join(', ')}
             </span>
           </div>
+        )}
+
+        {/* Quick contact actions — stop propagation so they don't open the detail panel */}
+        {(client.phone || client.email) && (
+          <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+            {client.phone && (
+              <a
+                href={`tel:${client.phone}`}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F0FDF4] border border-[#22C55E]/20 text-[#16A34A] text-[11px] font-medium rounded-lg hover:bg-[#22C55E] hover:text-white hover:border-[#22C55E] transition-all"
+              >
+                <Phone size={11} /> Llamar
+              </a>
+            )}
+            {client.phone && (
+              <a
+                href={`https://wa.me/${waPhone}`}
+                target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F0FDF4] border border-[#22C55E]/20 text-[#16A34A] text-[11px] font-medium rounded-lg hover:bg-[#25D366] hover:text-white hover:border-[#25D366] transition-all"
+              >
+                <MessageCircle size={11} /> WhatsApp
+              </a>
+            )}
+            {client.email && (
+              <a
+                href={`mailto:${client.email}`}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#EFF6FF] border border-[#3B82F6]/20 text-[#3B82F6] text-[11px] font-medium rounded-lg hover:bg-[#3B82F6] hover:text-white hover:border-[#3B82F6] transition-all"
+              >
+                <Mail size={11} /> Email
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Footer ── */}
+      <div className="px-4 py-2.5 border-t border-[#F1F5F9] bg-[#F8FAFC] flex items-center justify-between">
+        {client.last_quote_number ? (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <FileText size={11} className="text-[#94A3B8] shrink-0" />
+            <span className="text-[11px] text-[#94A3B8] truncate">
+              Última: <span className="font-mono text-[#22C55E] font-semibold">{client.last_quote_number}</span>
+            </span>
+          </div>
+        ) : (
+          <span className="text-[11px] text-[#CBD5E1] italic">Sin cotizaciones</span>
+        )}
+        {ago && (
+          <span className="text-[10px] text-[#CBD5E1] shrink-0 ml-2">{ago}</span>
         )}
       </div>
     </div>

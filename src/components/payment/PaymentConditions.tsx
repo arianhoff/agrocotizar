@@ -1,5 +1,5 @@
 import { useQuoteStore } from '@/store/quoteStore'
-import { Card, CardTitle, FieldGroup, Label, Input, Select, PrefixInput } from '@/components/ui'
+import { Card, CardTitle, FieldGroup, Label, Input, Select } from '@/components/ui'
 import { generateCheckDates, fmt, cn } from '@/utils'
 import type { PaymentMode } from '@/types'
 
@@ -11,8 +11,8 @@ const MODES: { id: PaymentMode; icon: string; label: string; desc: string }[] = 
 ]
 
 export function PaymentConditions() {
-  const { quote, setPayment, setTaxes, setDelivery, setCurrency, setExchangeRate } = useQuoteStore()
-  const { payment, taxes, delivery, currency, exchange_rate } = quote
+  const { quote, setPayment, setTaxes, setDelivery } = useQuoteStore()
+  const { payment, taxes, delivery, currency } = quote
 
   const checkDates = generateCheckDates(payment.num_checks ?? 3)
 
@@ -180,30 +180,8 @@ export function PaymentConditions() {
           )}
         </Card>
 
-        {/* RIGHT: TC + IVA + Logística */}
+        {/* RIGHT: IVA + Logística */}
         <div className="space-y-4">
-          <Card>
-            <CardTitle>Tipo de Cambio & Moneda</CardTitle>
-            <FieldGroup>
-              <Label>Moneda</Label>
-              <div className="flex gap-2">
-                {(['USD', 'ARS'] as const).map(c => (
-                  <button key={c} onClick={() => setCurrency(c)}
-                    className={cn('flex-1 py-2 rounded-lg border text-[12px] font-medium transition-all cursor-pointer',
-                      currency === c ? 'bg-[#F0FDF4] border-[#22C55E] text-[#16A34A]' : 'bg-white border-[#E2E8F0] text-[#64748B] hover:border-[#22C55E]/40')}>
-                    {c === 'USD' ? '🇺🇸 USD' : '🇦🇷 ARS'}
-                  </button>
-                ))}
-              </div>
-            </FieldGroup>
-            <FieldGroup>
-              <Label>Tipo de cambio · Dólar BNA vendedor</Label>
-              <PrefixInput prefix="$" type="number" value={exchange_rate} min={1}
-                onChange={e => setExchangeRate(Number(e.target.value))} />
-              <p className="font-mono text-[10px] text-[#8B9BAA] mt-1">Actualizado automáticamente al abrir el cotizador</p>
-            </FieldGroup>
-          </Card>
-
           <Card>
             <CardTitle>IVA & Impuestos</CardTitle>
             <FieldGroup>
@@ -242,8 +220,8 @@ export function PaymentConditions() {
             <div className="grid grid-cols-2 gap-3">
               <FieldGroup>
                 <Label>Flete (monto fijo)</Label>
-                <PrefixInput prefix={currency === 'USD' ? 'U$S' : '$'} type="number" value={delivery.freight ?? 0} min={0}
-                  onChange={e => setDelivery({ freight: Number(e.target.value) })} />
+                <Input type="number" value={delivery.freight ?? 0} min={0}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDelivery({ freight: Number(e.target.value) })} />
               </FieldGroup>
               <FieldGroup>
                 <Label>Plazo estimado</Label>

@@ -1,4 +1,4 @@
-import type { ProductCategory } from '@/types'
+import type { ProductCategory, PaymentMode } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,9 +19,22 @@ export interface ExtractedOption {
   requires_commission: boolean
 }
 
+export interface ExtractedPaymentCondition {
+  label: string           // "Contado efectivo", "Cheques 90 días", etc.
+  mode: PaymentMode
+  discount_pct?: number
+  num_checks?: number
+  deposit_pct?: number
+  installments?: number
+  monthly_rate?: number
+  lease_term_months?: number
+  buyout_pct?: number
+}
+
 export interface ExtractedCatalogResult {
   products: ExtractedProduct[]
   options: ExtractedOption[]
+  paymentConditions: ExtractedPaymentCondition[]
 }
 
 export type DiffStatus = 'new' | 'price_update' | 'unchanged'
@@ -56,7 +69,7 @@ const VALID_IMAGE_TYPES: SupportedMediaType[] = ['image/jpeg', 'image/png', 'ima
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `Sos un asistente especializado en extraer listas de precios de maquinaria agrícola.
-Analizá el documento y separalo en dos grupos:
+Analizá el documento y separalo en tres grupos:
 
 **1. PRODUCTOS** (ítems que se venden de forma independiente con precio propio):
 Asigná la categoría más precisa según el tipo de ítem:
@@ -76,6 +89,18 @@ Son ítems que se agregan a una máquina puntual. Identificá a qué máquina pe
 Ejemplos: neumáticos, balanzas, revestimientos, kits, brazos hidráulicos, frenos, dosificadores, etc.
 Si un opcional aplica a varias máquinas, duplicalo con cada código.
 
+**3. CONDICIONES DE PAGO** (si el documento las incluye):
+Extraé cada modalidad de pago mencionada. Campos:
+- label: nombre descriptivo (ej: "Contado efectivo", "3 cheques a 90 días", "Financiado 12 cuotas")
+- mode: uno de "contado" | "cheques" | "financiado" | "leasing"
+- discount_pct: descuento porcentual si aplica (solo número, ej: 20)
+- num_checks: cantidad de cheques si es modalidad cheques
+- deposit_pct: % de anticipo si es financiado/leasing
+- installments: cantidad de cuotas si es financiado
+- monthly_rate: tasa mensual % si está indicada
+- lease_term_months: plazo en meses si es leasing
+Si no hay condiciones de pago en el documento, devolvé "payment_conditions": []
+
 Reglas importantes:
 - El precio debe ser número sin separadores de miles ni símbolo (ej: 27700 no "27.700" ni "U$S 27.700")
 - Si la moneda no está explícita asumí USD
@@ -91,12 +116,15 @@ Formato exacto de respuesta:
   ],
   "options": [
     { "product_code": "string", "name": "string", "price": number, "currency": "USD", "requires_commission": true }
+  ],
+  "payment_conditions": [
+    { "label": "string", "mode": "contado", "discount_pct": 20 }
   ]
 }`
 
 // ─── JSON extractor ───────────────────────────────────────────────────────────
 
-function safeParseJSON(raw: string): { products?: unknown[]; options?: unknown[] } {
+function safeParseJSON(raw: string): { products?: unknown[]; options?: unknown[]; payment_conditions?: unknown[] } {
   // Strip markdown code fences
   let clean = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
 
@@ -278,8 +306,10 @@ export async function extractCatalogFromFile(
           .filter((p: any) => p.code && p.name && typeof p.price === 'number') as ExtractedProduct[]
         const options = (parsed.options ?? [])
           .filter((o: any) => o.product_code && o.name && typeof o.price === 'number') as ExtractedOption[]
+        const paymentConditions = (parsed.payment_conditions ?? [])
+          .filter((c: any) => c.label && c.mode) as ExtractedPaymentCondition[]
 
-        return { products, options }
+        return { products, options, paymentConditions }
       }
     } catch (err) {
       // If streaming fails (network error, CORS, etc.), fall through to non-streaming
@@ -318,8 +348,10 @@ export async function extractCatalogFromFile(
     .filter((p: any) => p.code && p.name && typeof p.price === 'number') as ExtractedProduct[]
   const options = (parsed.options ?? [])
     .filter((o: any) => o.product_code && o.name && typeof o.price === 'number') as ExtractedOption[]
+  const paymentConditions = (parsed.payment_conditions ?? [])
+    .filter((c: any) => c.label && c.mode) as ExtractedPaymentCondition[]
 
-  return { products, options }
+  return { products, options, paymentConditions }
 }
 
 // ─── Diff helpers ─────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type {
   Quote, QuoteItem, QuoteDiscount, PaymentCondition,
-  QuoteTotals, QuoteClient, QuoteTax, QuoteDelivery,
+  QuoteTotals, QuoteClient, QuoteTax, QuoteDelivery, PaymentConditionTemplate,
 } from '@/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ const newQuote = (): Quote => ({
   quote_number: `COT-${String(Math.floor(Math.random() * 9000) + 1000)}`,
   status: 'draft',
   client: { name: '', province: '', city: '' },
-  currency: 'USD',
+  currency: 'USD' as const,  // always USD — both USD and ARS shown in summary via exchange_rate
   exchange_rate: 1150,
   items: [],
   discounts: [],
@@ -150,6 +150,9 @@ interface QuoteStore {
   // Delivery
   setDelivery: (delivery: Partial<QuoteDelivery>) => void
 
+  // Initialize quote from a price list (sets payment from list's first condition)
+  initFromPriceList: (priceListId: string, paymentTemplate?: PaymentConditionTemplate) => void
+
   // AI bulk apply
   applyAIExtraction: (data: Partial<Quote>) => void
 }
@@ -218,6 +221,17 @@ export const useQuoteStore = create<QuoteStore>()(
         setPayment: (payment) => upd({ payment: { ...get().quote.payment, ...payment } }),
         setTaxes: (taxes) => upd({ taxes: { ...get().quote.taxes, ...taxes } }),
         setDelivery: (delivery) => upd({ delivery: { ...get().quote.delivery, ...delivery } }),
+
+        initFromPriceList: (priceListId, paymentTemplate) => {
+          const q = newQuote()
+          const withList: Quote = {
+            ...q,
+            // Store which price list this quote is based on (for item picker)
+            notes: undefined,
+            payment: paymentTemplate ? { ...paymentTemplate.condition } : q.payment,
+          }
+          set({ quote: recompute(withList), totals: computeTotals(withList) })
+        },
 
         applyAIExtraction: (data) => {
           const current = get().quote

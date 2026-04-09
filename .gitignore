@@ -34,3 +34,6 @@ dist-ssr
 
 # Screenshot artifacts
 img/
+
+# AFIP WSAA token cache (contiene credenciales temporales)
+.wsaa-token.json
