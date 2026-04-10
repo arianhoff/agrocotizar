@@ -55,25 +55,53 @@ export default async function handler(req, res) {
     : `/centraldedeudores/v1.0/Deudas/${cuit}`
   const url = `https://api.bcra.gob.ar${bcraPath}`
 
-  try {
-    const upstream = await undiciFetch(url, {
+  // Try multiple fetch strategies — BCRA blocks some IPs/TLS fingerprints
+  const fetchStrategies = [
+    // Strategy 1: undici with custom TLS (bypasses fingerprint checks)
+    () => undiciFetch(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
         'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124"',
+        'sec-ch-ua-mobile': '?0',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        Referer: 'https://www.bcra.gob.ar/',
+        Origin: 'https://www.bcra.gob.ar',
       },
       dispatcher: agent,
-    })
-    const body = await upstream.text()
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
-    res.statusCode = upstream.status
-    res.end(body)
-  } catch (err) {
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
-    res.setHeader('Content-Type', 'application/json')
-    res.statusCode = 500
-    res.end(JSON.stringify({ error: `BCRA proxy error: ${err.message}` }))
+    }),
+    // Strategy 2: native fetch (different TLS stack)
+    () => fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+      signal: AbortSignal.timeout(10000),
+    }),
+  ]
+
+  let lastErr = null
+  for (const strategy of fetchStrategies) {
+    try {
+      const upstream = await strategy()
+      const body = await upstream.text()
+      if (upstream.status >= 500) { lastErr = { status: upstream.status, body }; continue }
+      Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
+      res.statusCode = upstream.status
+      return res.end(body)
+    } catch (err) {
+      lastErr = { status: 500, body: err.message }
+    }
   }
+
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+  res.setHeader('Content-Type', 'application/json')
+  res.statusCode = lastErr.status || 500
+  res.end(JSON.stringify({ error: `BCRA proxy error`, detail: String(lastErr.body).substring(0, 200) }))
 }
