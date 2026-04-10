@@ -323,14 +323,15 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     const nombre   = p(innerXml, 'nombre')
     const denominacion = p(innerXml, 'denominacion') || (apellido ? `${apellido}${nombre ? ', ' + nombre : ''}` : nombre)
 
-    // IVA: <descripcionIVA> or inside <impuesto> blocks
-    const ivaDesc = p(innerXml, 'descripcionIVA') ||
+    // IVA: try multiple possible tags
+    const ivaDesc = p(innerXml, 'descripcionIVA') || p(innerXml, 'condicionIVA') ||
       [...innerXml.matchAll(/<impuesto>([\s\S]*?)<\/impuesto>/g)]
-        .map(m => p(m[1], 'descripcionImpuesto'))
-        .find(d => /iva|ganancias/i.test(d)) ?? ''
+        .map(m => p(m[1], 'descripcionImpuesto') || p(m[1], 'descripcion'))
+        .find(d => /iva|monotribut/i.test(d)) ?? ''
 
-    // Actividades: <actividadesEconomicas> blocks
+    // Actividades: try <actividadesEconomicas> blocks, fallback to <descripcionActividadPrincipal>
     const actividadesXml = [...innerXml.matchAll(/<actividadesEconomicas>([\s\S]*?)<\/actividadesEconomicas>/g)]
+    const actPrincipalDirecta = p(innerXml, 'descripcionActividadPrincipal')
 
     const data = {
       idPersona:    p(innerXml, 'idPersona') || p(personaXml, 'idPersona'),
@@ -346,10 +347,15 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
         descripcionProvincia: p(domXml, 'descripcionProvincia'),
         codPostal:            p(domXml, 'codigoPostal') || p(domXml, 'codPostal'),
       } : undefined,
-      actividades: actividadesXml.map(a => ({
-        orden: parseInt(p(a[1], 'orden') || '0'),
-        descripcionActividad: p(a[1], 'descripcionActividad') || p(a[1], 'actividad'),
-      })),
+      actividades: actividadesXml.length > 0
+        ? actividadesXml.map(a => ({
+            orden: parseInt(p(a[1], 'orden') || '0'),
+            descripcionActividad: p(a[1], 'descripcionActividad') || p(a[1], 'actividad'),
+          }))
+        : actPrincipalDirecta
+          ? [{ orden: 1, descripcionActividad: actPrincipalDirecta }]
+          : [],
+      _raw: xml.substring(0, 1500),
     }
 
     return send(res, 200, cors, { datosGenerales: data })
