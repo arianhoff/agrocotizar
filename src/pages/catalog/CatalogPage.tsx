@@ -4,8 +4,9 @@ import { useCatalogStore, type CsvRow } from '@/store/catalogStore'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card, Button, Badge, FieldGroup, Label, Input, Select } from '@/components/ui'
 import {
-  extractCatalogFromFile, diffCatalog, readFileAsBase64,
+  extractCatalogFromFile, extractPaymentConditionsFromFile, diffCatalog, readFileAsBase64,
   type CatalogDiff, type ProductDiff, type OptionDiff, type ExtractionProgress,
+  type ExtractedPaymentCondition,
 } from '@/lib/ai/catalogExtraction'
 import { fmt } from '@/utils'
 import type { PriceList, Product, ProductOption, ProductCategory, PaymentConditionTemplate, PaymentMode } from '@/types'
@@ -1106,16 +1107,120 @@ function PaymentConditionsSection({ priceListId }: { priceListId: string }) {
   )
 }
 
+// ─── Payment Conditions Import Review ────────────────────────────────────────
+
+const PC_MODE_META: Record<string, { icon: string; color: string; bg: string }> = {
+  contado:    { icon: '💵', color: 'text-[#16A34A]', bg: 'bg-[#F0FDF4] border-[#22C55E]/30' },
+  cheques:    { icon: '🧾', color: 'text-[#92400E]', bg: 'bg-[#FFFBEB] border-[#F59E0B]/30' },
+  financiado: { icon: '🏦', color: 'text-[#1D4ED8]', bg: 'bg-[#EFF6FF] border-[#93C5FD]/50' },
+  leasing:    { icon: '📋', color: 'text-[#6D28D9]', bg: 'bg-[#F5F3FF] border-[#C4B5FD]/50' },
+}
+
+function PaymentConditionsImportReview({
+  conditions,
+  existingCount,
+  onApply,
+  onCancel,
+}: {
+  conditions: ExtractedPaymentCondition[]
+  existingCount: number
+  onApply: (selected: ExtractedPaymentCondition[]) => void
+  onCancel: () => void
+}) {
+  const [selected, setSelected] = useState<Set<number>>(() => new Set(conditions.map((_, i) => i)))
+
+  const toggle = (i: number) =>
+    setSelected(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s })
+
+  return (
+    <div className="mx-6 mt-4 rounded-xl border border-[#8B5CF6]/30 bg-[#F5F3FF] overflow-hidden">
+      <div className="px-5 py-3 bg-[#EDE9FE] border-b border-[#8B5CF6]/20 flex items-center gap-2">
+        <CreditCard size={14} className="text-[#7C3AED]" />
+        <span className="text-[12px] font-semibold text-[#6D28D9]">
+          {conditions.length} condición{conditions.length !== 1 ? 'es' : ''} detectada{conditions.length !== 1 ? 's' : ''} — revisá y confirmá
+        </span>
+        {existingCount > 0 && (
+          <span className="ml-auto text-[11px] text-[#7C3AED] bg-[#DDD6FE] px-2 py-0.5 rounded-full">
+            Se agregarán a las {existingCount} existentes
+          </span>
+        )}
+      </div>
+
+      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {conditions.map((pc, i) => {
+          const meta = PC_MODE_META[pc.mode] ?? PC_MODE_META.contado
+          const isSelected = selected.has(i)
+          return (
+            <button
+              key={i}
+              onClick={() => toggle(i)}
+              className={`text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+                isSelected
+                  ? 'border-[#8B5CF6] bg-white shadow-sm'
+                  : 'border-[#DDD6FE] bg-[#F5F3FF] opacity-50'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0 border ${meta.bg}`}>
+                  {meta.icon}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold text-[#0F172A] truncate">{pc.label}</div>
+                  <div className={`text-[11px] font-medium capitalize mt-0.5 ${meta.color}`}>
+                    {pc.mode}
+                    {pc.discount_pct   ? ` · ${pc.discount_pct}% desc.`    : ''}
+                    {pc.num_checks     ? ` · ${pc.num_checks} cheques`      : ''}
+                    {pc.installments   ? ` · ${pc.installments} cuotas`     : ''}
+                    {pc.lease_term_months ? ` · ${pc.lease_term_months} meses` : ''}
+                  </div>
+                </div>
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                  isSelected ? 'bg-[#7C3AED] border-[#7C3AED]' : 'border-[#C4B5FD]'
+                }`}>
+                  {isSelected && <Check size={10} className="text-white" />}
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="px-5 pb-4 flex items-center gap-3">
+        <button
+          onClick={() => onApply(conditions.filter((_, i) => selected.has(i)))}
+          disabled={selected.size === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7C3AED] text-white text-[12px] font-semibold hover:bg-[#6D28D9] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Check size={13} />
+          Agregar {selected.size} condición{selected.size !== 1 ? 'es' : ''}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 rounded-lg text-[12px] font-medium text-[#64748B] hover:text-[#0F172A] hover:bg-white/60 transition-colors cursor-pointer"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export function CatalogPage() {
   const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition } = useCatalogStore()
   const [showNewModal, setShowNewModal] = useState(false)
   const [showAdjustModal, setShowAdjustModal] = useState(false)
-  const [diff, setDiff] = useState<{ catalog: CatalogDiff; paymentConditions: import('@/lib/ai/catalogExtraction').ExtractedPaymentCondition[] } | null>(null)
+  const [diff, setDiff] = useState<{ catalog: CatalogDiff; paymentConditions: ExtractedPaymentCondition[] } | null>(null)
   const [uploadStep, setUploadStep] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [streamingProgress, setStreamingProgress] = useState<ExtractionProgress | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Payment-conditions-only upload ──
+  const [pcUploading, setPcUploading] = useState(false)
+  const [pcError, setPcError] = useState<string | null>(null)
+  const [pendingPaymentConditions, setPendingPaymentConditions] = useState<ExtractedPaymentCondition[] | null>(null)
+  const pcFileInputRef = useRef<HTMLInputElement>(null)
 
   const uploading = uploadStep !== null
 
@@ -1219,6 +1324,55 @@ export function CatalogPage() {
     setDiff(null)
   }
 
+  async function handlePaymentConditionsUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !activeList) return
+    e.target.value = ''
+
+    const fileSizeMB = file.size / 1024 / 1024
+    if (fileSizeMB > 50) {
+      setPcError(`Archivo demasiado grande (${fileSizeMB.toFixed(1)} MB). Máximo: 50 MB.`)
+      return
+    }
+
+    setPcUploading(true)
+    setPcError(null)
+    setPendingPaymentConditions(null)
+    try {
+      const { base64, mediaType } = await readFileAsBase64(file)
+      const conditions = await extractPaymentConditionsFromFile(base64, mediaType)
+      if (conditions.length === 0) {
+        setPcError('No se encontraron condiciones de pago en el archivo.')
+      } else {
+        setPendingPaymentConditions(conditions)
+      }
+    } catch (err) {
+      setPcError(err instanceof Error ? err.message : 'Error al procesar el archivo')
+    } finally {
+      setPcUploading(false)
+    }
+  }
+
+  function handleApplyPaymentConditions(selected: ExtractedPaymentCondition[]) {
+    if (!activeList) return
+    for (const pc of selected) {
+      addPaymentCondition(activeList.id, {
+        label: pc.label,
+        condition: {
+          mode: pc.mode,
+          discount_pct: pc.discount_pct ?? 0,
+          num_checks: pc.num_checks,
+          deposit_pct: pc.deposit_pct,
+          installments: pc.installments,
+          monthly_rate: pc.monthly_rate,
+          lease_term_months: pc.lease_term_months,
+          buyout_pct: pc.buyout_pct,
+        },
+      })
+    }
+    setPendingPaymentConditions(null)
+  }
+
   return (
     <>
       <PageHeader
@@ -1290,7 +1444,7 @@ export function CatalogPage() {
                   <div className="text-base text-[#0F172A] font-semibold truncate">{activeList.name}</div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                  {/* Hidden file input */}
+                  {/* Hidden file inputs */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -1298,14 +1452,31 @@ export function CatalogPage() {
                     className="hidden"
                     onChange={handleFileUpload}
                   />
+                  <input
+                    ref={pcFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                    className="hidden"
+                    onChange={handlePaymentConditionsUpload}
+                  />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
+                    disabled={uploading || pcUploading}
                     className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium rounded-lg border border-[#22C55E]/40 text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     {uploading
                       ? <><Loader2 size={12} className="animate-spin" /> <span className="hidden sm:inline">{uploadStep}</span><span className="sm:hidden">Cargando…</span></>
-                      : <><FileImage size={12} /> <span className="hidden sm:inline">Importar PDF / Imagen</span><span className="sm:hidden">Importar</span></>
+                      : <><FileImage size={12} /> <span className="hidden sm:inline">Importar lista</span><span className="sm:hidden">Lista</span></>
+                    }
+                  </button>
+                  <button
+                    onClick={() => pcFileInputRef.current?.click()}
+                    disabled={uploading || pcUploading}
+                    className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium rounded-lg border border-[#8B5CF6]/40 text-[#7C3AED] hover:bg-[#8B5CF6]/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {pcUploading
+                      ? <><Loader2 size={12} className="animate-spin" /> <span className="hidden sm:inline">Analizando…</span></>
+                      : <><CreditCard size={12} /> <span className="hidden sm:inline">Importar condiciones</span><span className="sm:hidden">Condiciones</span></>
                     }
                   </button>
                   <button
@@ -1417,6 +1588,25 @@ export function CatalogPage() {
                   <span className="text-[11px] text-[#EF4444] font-medium">{uploadError}</span>
                   <button onClick={() => setUploadError(null)} className="ml-auto text-[#EF4444]/60 hover:text-[#EF4444] cursor-pointer"><X size={12} /></button>
                 </div>
+              )}
+
+              {/* Payment conditions upload: error */}
+              {pcError && (
+                <div className="mx-6 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg border border-[#EF4444]/30 bg-[#EF4444]/10">
+                  <span className="text-[#EF4444] text-xs">✗</span>
+                  <span className="text-[11px] text-[#EF4444] font-medium">{pcError}</span>
+                  <button onClick={() => setPcError(null)} className="ml-auto text-[#EF4444]/60 hover:text-[#EF4444] cursor-pointer"><X size={12} /></button>
+                </div>
+              )}
+
+              {/* Payment conditions upload: review & confirm */}
+              {pendingPaymentConditions && (
+                <PaymentConditionsImportReview
+                  conditions={pendingPaymentConditions}
+                  existingCount={activeList?.payment_conditions?.length ?? 0}
+                  onApply={handleApplyPaymentConditions}
+                  onCancel={() => setPendingPaymentConditions(null)}
+                />
               )}
 
               {/* Nested product list — grouped by category, each product with its opcionales */}

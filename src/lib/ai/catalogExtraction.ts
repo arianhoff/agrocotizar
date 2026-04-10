@@ -387,6 +387,66 @@ export function diffCatalog(
   return { productDiffs, optionDiffs }
 }
 
+// ─── Payment-conditions-only extraction ──────────────────────────────────────
+
+const PAYMENT_ONLY_PROMPT = `Sos un asistente especializado en extraer condiciones de pago de documentos comerciales de maquinaria agrícola.
+Analizá el documento y extraé ÚNICAMENTE las condiciones de pago. Ignorá precios, productos, y cualquier otra información.
+
+Por cada modalidad de pago encontrada, extraé:
+- label: nombre descriptivo (ej: "Contado efectivo", "3 cheques a 90 días", "Financiado 12 cuotas BICE")
+- mode: uno de "contado" | "cheques" | "financiado" | "leasing"
+- discount_pct: descuento porcentual si aplica (solo número, ej: 20)
+- num_checks: cantidad de cheques si es modalidad cheques
+- deposit_pct: % de anticipo si es financiado/leasing
+- installments: cantidad de cuotas si es financiado
+- monthly_rate: tasa mensual % si está indicada
+- lease_term_months: plazo en meses si es leasing
+
+Respondé ÚNICAMENTE con JSON válido, sin texto adicional:
+{ "payment_conditions": [ { "label": "string", "mode": "contado", "discount_pct": 20 } ] }`
+
+/**
+ * Extrae SOLO condiciones de pago de un archivo (PDF o imagen).
+ * Usa un prompt optimizado que ignora productos/precios.
+ */
+export async function extractPaymentConditionsFromFile(
+  base64Data: string,
+  mediaType: SupportedMediaType,
+): Promise<ExtractedPaymentCondition[]> {
+  const isImage = VALID_IMAGE_TYPES.includes(mediaType)
+  const contentBlock = isImage
+    ? { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType, data: base64Data } }
+    : { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64Data } }
+
+  const response = await fetch('/api/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      system: PAYMENT_ONLY_PROMPT,
+      messages: [{
+        role: 'user',
+        content: [
+          contentBlock,
+          { type: 'text', text: 'Extraé todas las condiciones de pago de este documento. Respondé solo con el JSON.' },
+        ],
+      }],
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Error API ${response.status}`)
+  }
+
+  const data = await response.json()
+  const raw  = (data.content ?? []).map((b: { text?: string }) => b.text ?? '').join('')
+  const parsed = safeParseJSON(raw)
+  return ((parsed.payment_conditions ?? []) as any[])
+    .filter((c: any) => c.label && c.mode) as ExtractedPaymentCondition[]
+}
+
 // ─── File reader ──────────────────────────────────────────────────────────────
 
 export function readFileAsBase64(file: File): Promise<{ base64: string; mediaType: SupportedMediaType }> {
