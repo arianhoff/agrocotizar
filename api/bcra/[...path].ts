@@ -46,8 +46,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         'Sec-Fetch-Dest': 'empty', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'same-site',
         Connection: 'keep-alive',
       },
-      // @ts-expect-error — undici dispatcher
-      dispatcher: agent,
+      dispatcher: agent as never,
     })
     const body = await upstream.text()
     Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
