@@ -412,8 +412,12 @@ export async function shareQuotePDF(
   quote: Quote,
   channel: 'whatsapp' | 'email',
 ): Promise<void> {
-  const totals = computeTotals(quote)
-  const file   = await buildQuotePDFFile(quote)
+  // Open the window SYNCHRONOUSLY while we're still inside the user-gesture handler.
+  // Browsers block window.open() called after any await.
+  const win = window.open('about:blank', '_blank')
+
+  const totals  = computeTotals(quote)
+  const file    = await buildQuotePDFFile(quote)
   const subject = buildEmailSubject(quote)
   const shortMsg = `Hola${quote.client.name ? ` ${quote.client.name}` : ''}, te envío la cotización ${quote.quote_number} de GEA Gergolet Agrícola. Adjunto el PDF. ¡Cualquier consulta estoy a disposición!`
 
@@ -421,6 +425,7 @@ export async function shareQuotePDF(
   const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })
 
   if (canShare) {
+    win?.close()
     try {
       await navigator.share({
         files:   [file],
@@ -434,8 +439,7 @@ export async function shareQuotePDF(
     }
   }
 
-  // ── Fallback: descarga PDF + abre canal con mensaje corto ────────────────────
-  // Descargar el PDF primero
+  // ── Fallback: descarga PDF + navega la ventana ya abierta ────────────────────
   const url = URL.createObjectURL(file)
   const a = document.createElement('a')
   a.href = url; a.download = file.name
@@ -450,14 +454,14 @@ export async function shareQuotePDF(
     const text  = `${shortMsg}\n\n${notice}`
     const link  = arg ? `https://wa.me/${arg}?text=${encodeURIComponent(text)}`
                       : `https://wa.me/?text=${encodeURIComponent(text)}`
-    window.open(link, '_blank')
+    if (win) win.location.href = link
+    else window.open(link, '_blank')
   } else {
     const to   = quote.client.email ?? ''
     const body = `${shortMsg}\n\n${notice}\n\n---\n${buildEmailBody(quote, totals)}`
-    window.open(
-      `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-      '_blank',
-    )
+    const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    if (win) win.location.href = mailto
+    else window.open(mailto, '_blank')
   }
 }
 

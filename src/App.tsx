@@ -236,10 +236,15 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        clearAllStores()
+        // Don't wipe localStorage — preserve data so same user can re-login without losing work.
+        // A different-user login is handled below.
         setUserId(null)
       } else if (session?.user) {
-        setUserId(session.user.id)
+        // If a DIFFERENT user is logging in, clear stale data from the previous account.
+        setUserId(prev => {
+          if (prev && prev !== session.user.id) clearAllStores()
+          return session.user.id
+        })
       }
     })
 
