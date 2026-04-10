@@ -34,15 +34,18 @@ function getCorsHeaders(origin: string): Record<string, string> {
   }
 }
 
-const isProd = (process.env.AFIP_ENV ?? '').toLowerCase() === 'prod'
-
-const WSAA_URL = isProd
-  ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
-  : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms'
-
-const PADRON_URL = isProd
-  ? 'https://aws.afip.gov.ar/sr-padron/v2/persona'
-  : 'https://awshomo.afip.gov.ar/sr-padron/v2/persona'
+function getUrls() {
+  const isProd = (process.env.AFIP_ENV ?? '').toLowerCase().trim() === 'prod'
+  return {
+    wsaaUrl: isProd
+      ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
+      : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
+    padronUrl: isProd
+      ? 'https://aws.afip.gov.ar/sr-padron/v2/persona'
+      : 'https://awshomo.afip.gov.ar/sr-padron/v2/persona',
+    isProd,
+  }
+}
 
 const SERVICE = 'ws_sr_padron_a13'
 
@@ -141,7 +144,7 @@ async function signTRA(tra: string, certPem: string, keyPem: string): Promise<st
   return forge.util.encode64(der)
 }
 
-async function fetchFreshToken(certPem: string, keyPem: string): Promise<{ token: string; sign: string }> {
+async function fetchFreshToken(certPem: string, keyPem: string, wsaaUrl: string): Promise<{ token: string; sign: string }> {
   const cms = await signTRA(buildTRA(), certPem, keyPem)
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -152,7 +155,7 @@ async function fetchFreshToken(certPem: string, keyPem: string): Promise<{ token
   </soapenv:Body>
 </soapenv:Envelope>`
 
-  const res = await fetch(WSAA_URL, {
+  const res = await fetch(wsaaUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'text/xml; charset=UTF-8', SOAPAction: '""' },
     body: soapBody,
@@ -250,10 +253,12 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     })
   }
 
-  try {
-    const { token: wsaaToken, sign } = (await readCachedToken()) ?? (await fetchFreshToken(certPem, keyPem))
+  const { wsaaUrl, padronUrl, isProd: usingProd } = getUrls()
 
-    const padronRes = await fetch(`${PADRON_URL}/${cuit}`, {
+  try {
+    const { token: wsaaToken, sign } = (await readCachedToken()) ?? (await fetchFreshToken(certPem, keyPem, wsaaUrl))
+
+    const padronRes = await fetch(`${padronUrl}/${cuit}`, {
       headers: { Authorization: `WSAA token="${wsaaToken}",sign="${sign}"`, Accept: 'application/json' },
       signal: AbortSignal.timeout(15_000),
     })
@@ -262,8 +267,8 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     if (!padronRes.ok) {
       if (padronRes.status === 401) {
         memCache = null
-        const { token: t2, sign: s2 } = await fetchFreshToken(certPem, keyPem)
-        const res2 = await fetch(`${PADRON_URL}/${cuit}`, {
+        const { token: t2, sign: s2 } = await fetchFreshToken(certPem, keyPem, wsaaUrl)
+        const res2 = await fetch(`${padronUrl}/${cuit}`, {
           headers: { Authorization: `WSAA token="${t2}",sign="${s2}"`, Accept: 'application/json' },
           signal: AbortSignal.timeout(15_000),
         })
@@ -275,7 +280,7 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
         }
       }
       return send(res, padronRes.status >= 500 ? 502 : padronRes.status, cors,
-        { error: 'PADRON_ERROR', status: padronRes.status, message: text.substring(0, 200) })
+        { error: 'PADRON_ERROR', status: padronRes.status, env: usingProd ? 'prod' : 'homo', url: `${padronUrl}/${cuit}`, message: text.substring(0, 200) })
     }
 
     try {
