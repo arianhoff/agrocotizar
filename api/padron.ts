@@ -4,6 +4,20 @@
  */
 import type { IncomingMessage, ServerResponse } from 'http'
 import { createClient } from '@supabase/supabase-js'
+import { Agent, fetch as undiciFetch } from 'undici'
+
+const tlsAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+    ciphers: [
+      'TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256',
+      'ECDHE-ECDSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES128-GCM-SHA256',
+      'ECDHE-ECDSA-AES256-GCM-SHA384', 'ECDHE-RSA-AES256-GCM-SHA384',
+      'ECDHE-ECDSA-CHACHA20-POLY1305', 'ECDHE-RSA-CHACHA20-POLY1305',
+    ].join(':'),
+    minVersion: 'TLSv1.2',
+  },
+})
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _forge: any = null
@@ -258,20 +272,20 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
   try {
     const { token: wsaaToken, sign } = (await readCachedToken()) ?? (await fetchFreshToken(certPem, keyPem, wsaaUrl))
 
-    const padronRes = await fetch(`${padronUrl}/${cuit}`, {
-      headers: { Authorization: `WSAA token="${wsaaToken}",sign="${sign}"`, Accept: 'application/json' },
+    const afipFetch = (url: string, token: string, sign: string) => undiciFetch(url, {
+      headers: { Authorization: `WSAA token="${token}",sign="${sign}"`, Accept: 'application/json' },
       signal: AbortSignal.timeout(15_000),
+      dispatcher: tlsAgent as never,
     })
+
+    const padronRes = await afipFetch(`${padronUrl}/${cuit}`, wsaaToken, sign)
     const text = await padronRes.text()
 
     if (!padronRes.ok) {
       if (padronRes.status === 401) {
         memCache = null
         const { token: t2, sign: s2 } = await fetchFreshToken(certPem, keyPem, wsaaUrl)
-        const res2 = await fetch(`${padronUrl}/${cuit}`, {
-          headers: { Authorization: `WSAA token="${t2}",sign="${s2}"`, Accept: 'application/json' },
-          signal: AbortSignal.timeout(15_000),
-        })
+        const res2 = await afipFetch(`${padronUrl}/${cuit}`, t2, s2)
         const text2 = await res2.text()
         if (!res2.ok) return send(res, res2.status >= 500 ? 502 : res2.status, cors,
           { error: 'PADRON_ERROR', status: res2.status, message: text2.substring(0, 200) })
