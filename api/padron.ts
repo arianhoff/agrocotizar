@@ -3,8 +3,12 @@
  * Proxy ARCA/AFIP Padrón — autónomo, sin imports locales.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
-import * as forge from 'node-forge'
+import { createRequire } from 'module'
 import { createClient } from '@supabase/supabase-js'
+
+const require = createRequire(import.meta.url)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const forge = require('node-forge') as any
 
 const ALLOWED_ORIGINS = [
   process.env.SITE_URL ?? '',
