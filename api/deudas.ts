@@ -4,7 +4,7 @@
  * Proxy BCRA Central de Deudores.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
-import handler from './_bcra-handler'
+import handler from './_bcra-handler.js'
 
 export default function deudas(req: IncomingMessage & { url?: string }, res: ServerResponse) {
   const url = new URL(req.url ?? '', 'http://localhost')

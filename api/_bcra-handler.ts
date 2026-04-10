@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { Agent, fetch as undiciFetch } from 'undici'
-import { getCorsHeaders } from './_cors'
+import { getCorsHeaders } from './_cors.js'
 
 const agent = new Agent({
   connect: {

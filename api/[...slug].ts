@@ -4,8 +4,8 @@
  * so we route /api/afip/* and /api/bcra/* from here.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
-import afipHandler from './_afip-handler'
-import bcraHandler from './_bcra-handler'
+import afipHandler from './_afip-handler.js'
+import bcraHandler from './_bcra-handler.js'
 
 export default function handler(req: IncomingMessage, res: ServerResponse) {
   const url = req.url ?? ''

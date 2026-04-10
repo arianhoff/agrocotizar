@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import * as forge from 'node-forge'
 import { createClient } from '@supabase/supabase-js'
-import { getCorsHeaders } from './_cors'
+import { getCorsHeaders } from './_cors.js'
 
 const isProd = (process.env.AFIP_ENV ?? '').toLowerCase() === 'prod'
 
