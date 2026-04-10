@@ -16,12 +16,13 @@ const TOKEN_FILE = '.wsaa-token.json'
 
 type WSAACache = { token: string; sign: string; expiry: string }
 
-function loadCachedToken(): { token: string; sign: string; expiry: Date } | null {
+/** Carga el token del disco. Si `strict=true` (default) descarta los vencidos. */
+function loadCachedToken(strict = true): { token: string; sign: string; expiry: Date } | null {
   try {
     const raw = fs.readFileSync(TOKEN_FILE, 'utf8')
     const c: WSAACache = JSON.parse(raw)
     const expiry = new Date(c.expiry)
-    if (expiry > new Date(Date.now() + 5 * 60_000)) {
+    if (!strict || expiry > new Date(Date.now() + 5 * 60_000)) {
       return { token: c.token, sign: c.sign, expiry }
     }
   } catch { /* no file or expired */ }
@@ -29,7 +30,12 @@ function loadCachedToken(): { token: string; sign: string; expiry: Date } | null
 }
 
 function saveCachedToken(token: string, sign: string, expiry: Date) {
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token, sign, expiry: expiry.toISOString() }))
+  try {
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token, sign, expiry: expiry.toISOString() }))
+    console.log('[afip-proxy] Token guardado en', TOKEN_FILE, '— vence:', expiry.toLocaleString('es-AR'))
+  } catch (e) {
+    console.error('[afip-proxy] No se pudo guardar el token en disco:', e)
+  }
 }
 
 let wsaaCache: { token: string; sign: string; expiry: Date } | null = loadCachedToken()
@@ -39,16 +45,18 @@ function buildTRA(service: string): string {
   const from = new Date(now.getTime() - 60_000)
   const to   = new Date(now.getTime() + 12 * 3600_000)
   // AFIP espera hora local Argentina (UTC-3) con offset explícito
-  const fmt  = (d: Date) => {
+  const fmtTs = (d: Date) => {
     const ar = new Date(d.getTime() - 3 * 3600_000)
     return ar.toISOString().replace('Z', '-03:00')
   }
+  // uniqueId: milisegundos módulo 999999999 para evitar colisiones entre reinicios
+  const uniqueId = Date.now() % 999999999
   return `<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
   <header>
-    <uniqueId>${Math.floor(Date.now() / 1000)}</uniqueId>
-    <generationTime>${fmt(from)}</generationTime>
-    <expirationTime>${fmt(to)}</expirationTime>
+    <uniqueId>${uniqueId}</uniqueId>
+    <generationTime>${fmtTs(from)}</generationTime>
+    <expirationTime>${fmtTs(to)}</expirationTime>
   </header>
   <service>${service}</service>
 </loginTicketRequest>`
@@ -96,18 +104,44 @@ async function getWSAAToken(certPem: string, keyPem: string): Promise<{ token: s
     body: soap,
   })
   const xml = await res.text()
-  const token  = xml.match(/<token>([\s\S]*?)<\/token>/)?.[1]?.trim()
-  const sign   = xml.match(/<sign>([\s\S]*?)<\/sign>/)?.[1]?.trim()
-  const expiry = xml.match(/<expirationTime>([\s\S]*?)<\/expirationTime>/)?.[1]?.trim()
-  // coe.alreadyAuthenticated = AFIP tiene un TA activo, usamos el que tengamos en disco
-  if (xml.includes('alreadyAuthenticated')) {
-    const disk = loadCachedToken()
+
+  // AFIP wraps the ticket XML inside <loginCmsReturn> as HTML-entity-encoded text
+  // Extract that inner content and decode entities before parsing token/sign
+  const innerRaw = xml.match(/<loginCmsReturn[^>]*>([\s\S]*?)<\/loginCmsReturn>/)?.[1] ?? xml
+  const inner = innerRaw
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g,  '&')
+    .replace(/&#xD;/g,  '')
+  console.log('[afip-proxy] WSAA inner ticket:', inner.substring(0, 800))
+
+  const token  = inner.match(/<token>([\s\S]*?)<\/token>/)?.[1]?.trim()
+  const sign   = inner.match(/<sign>([\s\S]*?)<\/sign>/)?.[1]?.trim()
+  const expiry = inner.match(/<expirationTime>([\s\S]*?)<\/expirationTime>/)?.[1]?.trim()
+
+  // coe.alreadyAuthenticated = AFIP ya tiene un TA activo para este cert+servicio
+  // Usamos loadCachedToken(false) para aceptar el token del disco aunque parezca vencido
+  // (AFIP dice que sigue activo, así que lo usamos igual)
+  if (xml.includes('alreadyAuthenticated') || inner.includes('alreadyAuthenticated')) {
+    console.log('[afip-proxy] alreadyAuthenticated — buscando token en disco (incluso si venció)')
+    console.log('[afip-proxy] XML completo del fault:', xml)
+    const disk = loadCachedToken(false) // non-strict: acepta token aunque esté vencido
     if (disk) {
       wsaaCache = disk
+      console.log('[afip-proxy] Token recuperado del disco, vence:', disk.expiry.toLocaleString('es-AR'))
       return { token: disk.token, sign: disk.sign }
     }
-    throw new Error('AFIP tiene un TA activo pero no tenemos el token guardado. Esperá 12hs o eliminá .wsaa-token.json')
+    // Estimamos la expiración: la primera solicitud fue hace poco, el TA dura 12hs desde generación
+    const approxExpiry = new Date(Date.now() + 11 * 3600_000) // conservador: ~11hs
+    console.log('[afip-proxy] No hay token en disco. Expiración estimada del TA activo:', approxExpiry.toLocaleString('es-AR'))
+    throw new Error(
+      `AFIP ya tiene un TA activo para este certificado (homologación) pero no tenemos el token guardado. ` +
+      `El TA debería expirar alrededor de las ${approxExpiry.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs. ` +
+      `Hasta entonces AFIP no emitirá un nuevo token.`
+    )
   }
+
   if (!token || !sign) throw new Error(`WSAA falló: ${xml.substring(0, 400)}`)
   const expiryDate = expiry ? new Date(expiry) : new Date(Date.now() + 11 * 3600_000)
   wsaaCache = { token, sign, expiry: expiryDate }

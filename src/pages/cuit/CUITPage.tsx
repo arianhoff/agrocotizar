@@ -50,6 +50,7 @@ interface CUITResult {
   bcraData?: DeudorResult
   bcraError?: string
   maxSituacion?: SituacionCode
+  afipError?: string        // error message from ARCA proxy
 }
 
 const SITUACION_LABEL: Record<SituacionCode, { label: string; color: string; bg: string; border: string; icon: React.ElementType }> = {
@@ -96,27 +97,23 @@ async function fetchBCRA(cuit: string): Promise<
   }
 }
 
-async function fetchAFIP(cuit: string): Promise<{
-  nombre?: string
-  tipoPersona?: string
-  tipoClave?: string
-  domicilio?: string
-  localidad?: string
-  provincia?: string
-  condicionIVA?: string
-  actividadPrincipal?: string
-  estadoClave?: string
-} | null> {
+type AFIPResult =
+  | { ok: true; nombre?: string; tipoPersona?: string; tipoClave?: string; domicilio?: string; localidad?: string; provincia?: string; condicionIVA?: string; actividadPrincipal?: string; estadoClave?: string }
+  | { ok: false; errorCode: string; errorMessage: string }
+
+async function fetchAFIP(cuit: string): Promise<AFIPResult> {
   const clean = cuit.replace(/-/g, '')
   try {
     const { authFetch } = await import('@/lib/api')
     const res = await authFetch(`/api/afip/sr-padron/v2/persona/${clean}`, { headers: { Accept: 'application/json' } })
-    if (!res.ok) return null
     const json = await res.json()
     console.log('[AFIP raw]', JSON.stringify(json).substring(0, 800))
     if (json.error) {
       console.warn('[AFIP proxy]', json.error, json.message, json.detail ?? '')
-      return null
+      return { ok: false, errorCode: json.error, errorMessage: json.message ?? json.error }
+    }
+    if (!res.ok) {
+      return { ok: false, errorCode: 'HTTP_ERROR', errorMessage: `HTTP ${res.status}` }
     }
     const d = json.datosGenerales ?? json
     // Actividad principal
@@ -124,6 +121,7 @@ async function fetchAFIP(cuit: string): Promise<{
     const actPrincipal = actividades.find(a => a.orden === 1)?.descripcionActividad
       ?? actividades[0]?.descripcionActividad
     return {
+      ok: true,
       nombre:            d.nombre ?? d.denominacion ?? '',
       tipoPersona:       d.tipoPersona ?? '',
       tipoClave:         d.tipoClave ?? '',
@@ -134,8 +132,8 @@ async function fetchAFIP(cuit: string): Promise<{
       actividadPrincipal: actPrincipal ?? '',
       estadoClave:       d.estadoClave ?? '',
     }
-  } catch {
-    return null
+  } catch (e) {
+    return { ok: false, errorCode: 'FETCH_ERROR', errorMessage: (e as Error).message ?? 'Error de conexión' }
   }
 }
 
@@ -218,27 +216,31 @@ export function CUITPage() {
     try {
       const [bcraRes, afipRes] = await Promise.all([fetchBCRA(input), fetchAFIP(input)])
 
+      const afipOk = afipRes.ok ? afipRes : null
+      const afipErr = !afipRes.ok ? afipRes : null
+
       const denominacion =
         bcraRes.status === 'ok' ? bcraRes.data.denominacion
         : bcraRes.status === 'sin_deudas' ? bcraRes.denominacion
-        : afipRes?.nombre ?? ''
+        : afipOk?.nombre ?? ''
 
       const r: CUITResult = {
         cuit:              input,
-        denominacion:      afipRes?.nombre || denominacion,
-        tipoPersona:       afipRes?.tipoPersona,
-        tipoClave:         afipRes?.tipoClave,
-        domicilio:         afipRes?.domicilio,
-        localidad:         afipRes?.localidad,
-        provincia:         afipRes?.provincia,
-        condicionIVA:      afipRes?.condicionIVA,
-        actividadPrincipal: afipRes?.actividadPrincipal,
-        estadoClave:       afipRes?.estadoClave,
+        denominacion:      afipOk?.nombre || denominacion,
+        tipoPersona:       afipOk?.tipoPersona,
+        tipoClave:         afipOk?.tipoClave,
+        domicilio:         afipOk?.domicilio,
+        localidad:         afipOk?.localidad,
+        provincia:         afipOk?.provincia,
+        condicionIVA:      afipOk?.condicionIVA,
+        actividadPrincipal: afipOk?.actividadPrincipal,
+        estadoClave:       afipOk?.estadoClave,
         bcra:              bcraRes.status,
         bcraData:          bcraRes.status === 'ok' ? bcraRes.data : undefined,
         bcraError:         bcraRes.status === 'error' ? bcraRes.message : undefined,
         maxSituacion:      bcraRes.status === 'ok' ? maxSit(bcraRes.data.periodos)
                            : bcraRes.status === 'sin_deudas' ? 1 : undefined,
+        afipError:         afipErr ? `${afipErr.errorCode}: ${afipErr.errorMessage}` : undefined,
       }
 
       setResult(r)
@@ -527,13 +529,24 @@ export function CUITPage() {
               </Card>
             )}
 
-            {/* Sin datos AFIP */}
-            {!result.denominacion && !result.domicilio && (
+            {/* Sin datos AFIP / error ARCA */}
+            {result.afipError && (
+              <Card>
+                <div className="flex items-start gap-3">
+                  <AlertCircle size={16} className="text-[#EF4444] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[12px] font-semibold text-[#991B1B]">No se pudieron obtener datos de ARCA</div>
+                    <div className="text-[11px] text-[#64748B] mt-0.5 font-mono break-all">{result.afipError}</div>
+                  </div>
+                </div>
+              </Card>
+            )}
+            {!result.afipError && !result.denominacion && !result.domicilio && (
               <Card>
                 <div className="flex items-center gap-3">
                   <AlertCircle size={16} className="text-[#94A3B8] shrink-0" />
                   <div className="text-[12px] text-[#64748B]">
-                    No se obtuvieron datos de ARCA/AFIP. Verificá que el CUIT exista o que las credenciales WSAA estén configuradas.
+                    No se obtuvieron datos de ARCA. Verificá que el CUIT exista o que las credenciales WSAA estén configuradas.
                   </div>
                 </div>
               </Card>
