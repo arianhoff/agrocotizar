@@ -12,22 +12,60 @@ interface BNARate {
   fechaActualizacion: string
 }
 
+/** Returns the date string (YYYY-MM-DD) in Buenos Aires timezone */
+function toBuenosAiresDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+}
+
+/** true if the rate's date is before today in Buenos Aires */
+function isStale(fechaActualizacion: string): boolean {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  return toBuenosAiresDate(fechaActualizacion) < today
+}
+
 async function fetchBNARate(): Promise<BNARate> {
-  const res = await fetch('https://dolarapi.com/v1/dolares/oficial')
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const data = await res.json()
-  return { venta: data.venta, compra: data.compra, fechaActualizacion: data.fechaActualizacion }
+  // Primary: dolarapi.com
+  const [dolarRes, bluelyticsRes] = await Promise.allSettled([
+    fetch('https://dolarapi.com/v1/dolares/oficial').then(r => r.ok ? r.json() : Promise.reject(r.status)),
+    fetch('https://api.bluelytics.com.ar/v2/latest').then(r => r.ok ? r.json() : Promise.reject(r.status)),
+  ])
+
+  const dolar = dolarRes.status === 'fulfilled' ? {
+    venta: dolarRes.value.venta as number,
+    compra: dolarRes.value.compra as number,
+    fechaActualizacion: dolarRes.value.fechaActualizacion as string,
+  } : null
+
+  const blue = bluelyticsRes.status === 'fulfilled' ? {
+    venta: bluelyticsRes.value.oficial.value_sell as number,
+    compra: bluelyticsRes.value.oficial.value_buy as number,
+    fechaActualizacion: bluelyticsRes.value.last_update as string,
+  } : null
+
+  if (!dolar && !blue) throw new Error('No se pudo obtener la cotización BNA')
+
+  // Prefer the source with the most recent date.
+  // If dolar is stale but blue is fresh today, use blue.
+  if (dolar && blue) {
+    const dolarDate = toBuenosAiresDate(dolar.fechaActualizacion)
+    const blueDate  = toBuenosAiresDate(blue.fechaActualizacion)
+    return blueDate > dolarDate ? blue : dolar
+  }
+
+  return dolar ?? blue!
 }
 
 function useBNARate(onRate: (venta: number) => void) {
   const [loading, setLoading] = useState(false)
   const [lastRate, setLastRate] = useState<BNARate | null>(null)
+  const [stale, setStale] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
       const rate = await fetchBNARate()
       setLastRate(rate)
+      setStale(isStale(rate.fechaActualizacion))
       onRate(rate.venta)
     } finally {
       setLoading(false)
@@ -36,7 +74,7 @@ function useBNARate(onRate: (venta: number) => void) {
 
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { loading, lastRate, refresh }
+  return { loading, lastRate, stale, refresh }
 }
 
 // ─── BCRA Central de Deudores ─────────────────────────────────────────────────
@@ -160,7 +198,7 @@ export function QuoteHeader() {
   const [bcraState, setBcraState] = useState<BCRAState>({ status: 'idle' })
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { loading: bnaLoading, lastRate, refresh: refreshBNA } = useBNARate(setExchangeRate)
+  const { loading: bnaLoading, lastRate, stale: bnaStale, refresh: refreshBNA } = useBNARate(setExchangeRate)
 
   // Auto-check CUIT when 11 digits entered (debounced)
   const handleCUITChange = (value: string) => {
@@ -415,7 +453,7 @@ export function QuoteHeader() {
         <FieldGroup>
           <Label>Dólar BNA vendedor (referencia)</Label>
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
+            <div className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border ${bnaStale ? 'bg-[#FFFBEB] border-[#F59E0B]/40' : 'bg-[#F8FAFC] border-[#E2E8F0]'}`}>
               <span className="text-[12px] font-mono text-[#64748B]">$</span>
               <input
                 type="number"
@@ -425,7 +463,7 @@ export function QuoteHeader() {
                 min={1}
               />
               {lastRate && (
-                <span className="text-[10px] text-[#94A3B8] shrink-0 font-mono">
+                <span className={`text-[10px] shrink-0 font-mono ${bnaStale ? 'text-[#D97706]' : 'text-[#94A3B8]'}`}>
                   {new Date(lastRate.fechaActualizacion).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
@@ -440,9 +478,16 @@ export function QuoteHeader() {
               BNA
             </button>
           </div>
-          <p className="text-[10px] text-[#94A3B8] mt-1">
-            La cotización se expresa en USD y en pesos al tipo de cambio BNA vendedor del día.
-          </p>
+          {bnaStale ? (
+            <p className="text-[10px] text-[#D97706] mt-1 flex items-center gap-1">
+              <AlertTriangle size={11} />
+              Cotización del día anterior — BNA aún no publicó la de hoy. Podés editarla manualmente.
+            </p>
+          ) : (
+            <p className="text-[10px] text-[#94A3B8] mt-1">
+              La cotización se expresa en USD y en pesos al tipo de cambio BNA vendedor del día.
+            </p>
+          )}
         </FieldGroup>
 
         <FieldGroup>
