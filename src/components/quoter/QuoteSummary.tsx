@@ -122,30 +122,22 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
     setTimeout(() => setCopied(false), 2500)
   }
 
-  const handleWhatsApp = () => {
-    const phone = quote.client.phone?.replace(/\D/g, '') ?? ''
-    const arg = phone.startsWith('54') ? phone : phone ? `54${phone}` : ''
-    const text = shareUrl
-      ? `${shortMsg}\nDescargá el PDF desde este enlace:\n${shareUrl}`
-      : buildWhatsAppText(quote, totals)
-    const link = arg
-      ? `https://wa.me/${arg}?text=${encodeURIComponent(text)}`
-      : `https://wa.me/?text=${encodeURIComponent(text)}`
-    window.open(link, '_blank')
-    afterShare(); onClose()
-  }
+  // Compute href values reactively so they reflect the final shareUrl.
+  // Using <a href> instead of window.open() avoids popup-blocker issues.
+  const waPhone = quote.client.phone?.replace(/\D/g, '') ?? ''
+  const waArg   = waPhone.startsWith('54') ? waPhone : waPhone ? `54${waPhone}` : ''
+  const waText  = shareUrl
+    ? `${shortMsg}\nDescargá el PDF desde este enlace:\n${shareUrl}`
+    : buildWhatsAppText(quote, totals)
+  const waHref  = waArg
+    ? `https://wa.me/${waArg}?text=${encodeURIComponent(waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(waText)}`
 
-  const handleEmail = () => {
-    const subject = buildEmailSubject(quote)
-    const body = shareUrl
-      ? `${shortMsg}\n\nDescargá el PDF desde este enlace:\n${shareUrl}\n\n---\n${buildEmailBody(quote, totals)}`
-      : buildEmailBody(quote, totals)
-    window.open(
-      `mailto:${quote.client.email ?? ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-      '_blank',
-    )
-    afterShare(); onClose()
-  }
+  const emailSubject = buildEmailSubject(quote)
+  const emailBody    = shareUrl
+    ? `${shortMsg}\n\nDescargá el PDF desde este enlace:\n${shareUrl}\n\n---\n${buildEmailBody(quote, totals)}`
+    : buildEmailBody(quote, totals)
+  const emailHref = `mailto:${quote.client.email ?? ''}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
 
   const handleDownload = async () => {
     if (!fileRef.current) return
@@ -255,23 +247,27 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
             </button>
           )}
 
-          {/* WhatsApp + Email */}
+          {/* WhatsApp + Email — rendered as <a> to avoid popup-blocker */}
           {status !== 'preparing' && (
             <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleWhatsApp}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#16A34A] text-[12px] font-medium hover:bg-[#25D366]/20 transition-colors cursor-pointer"
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => { afterShare(); onClose() }}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#16A34A] text-[12px] font-medium hover:bg-[#25D366]/20 transition-colors cursor-pointer no-underline"
               >
                 <MessageCircle size={13} />
-                {shareUrl ? 'WhatsApp' : 'WhatsApp'}
-              </button>
-              <button
-                onClick={handleEmail}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/30 text-[#3B82F6] text-[12px] font-medium hover:bg-[#3B82F6]/20 transition-colors cursor-pointer"
+                WhatsApp
+              </a>
+              <a
+                href={emailHref}
+                onClick={() => { afterShare(); onClose() }}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/30 text-[#3B82F6] text-[12px] font-medium hover:bg-[#3B82F6]/20 transition-colors cursor-pointer no-underline"
               >
                 <Mail size={13} />
                 Email
-              </button>
+              </a>
             </div>
           )}
 
