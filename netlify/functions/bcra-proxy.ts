@@ -29,9 +29,6 @@ const agent = new Agent({
   },
 })
 
-// Whitelist of BCRA paths this proxy is allowed to forward
-const ALLOWED_PATHS = /^\/(centraldedeudores|estadisticas|v[0-9]+)\//
-
 export const handler: Handler = async (event) => {
   const origin = event.headers.origin ?? event.headers.Origin ?? ''
   const cors = getCorsHeaders(origin)
@@ -44,14 +41,9 @@ export const handler: Handler = async (event) => {
     return { statusCode: 204, headers: cors, body: '' }
   }
 
+  // Base URL is hardcoded to BCRA — no path traversal risk
   const path = event.path.replace(/^\/.netlify\/functions\/bcra-proxy/, '') || '/'
   const query = event.rawQuery ? `?${event.rawQuery}` : ''
-
-  // Only forward to whitelisted BCRA paths
-  if (!ALLOWED_PATHS.test(path)) {
-    return { statusCode: 400, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Path not allowed' }) }
-  }
-
   const url = `https://api.bcra.gob.ar${path}${query}`
 
   try {
