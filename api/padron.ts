@@ -196,6 +196,19 @@ async function fetchFreshToken(certPem: string, keyPem: string): Promise<{ token
   return { token, sign }
 }
 
+function normalizePem(raw: string): string {
+  // Replace literal \n and normalize spaces/newlines
+  const s = raw.replace(/\\n/g, '\n').trim()
+  // If it already has real newlines it's fine
+  if (s.includes('\n')) return s
+  // Cert was stored with spaces — reconstruct valid PEM
+  const m = s.match(/-----BEGIN ([^-]+)-----([\s\S]*?)-----END ([^-]+)-----/)
+  if (!m) return s
+  const b64 = m[2].replace(/\s+/g, '')
+  const lines = (b64.match(/.{1,64}/g) ?? []).join('\n')
+  return `-----BEGIN ${m[1]}-----\n${lines}\n-----END ${m[3]}-----`
+}
+
 function send(res: ServerResponse, status: number, headers: Record<string, string>, body: unknown) {
   const json = JSON.stringify(body)
   Object.entries({ ...headers, 'Content-Type': 'application/json' })
@@ -226,7 +239,7 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     return send(res, 400, cors, { error: 'CUIT inválido', cuit })
   }
 
-  const certPem  = (process.env.AFIP_CERT ?? '').replace(/\\n/g, '\n')
+  const certPem  = normalizePem(process.env.AFIP_CERT ?? '')
   const keyPem   = (process.env.AFIP_KEY  ?? '').replace(/\\n/g, '\n')
   const afipCuit = process.env.AFIP_CUIT  ?? ''
 
