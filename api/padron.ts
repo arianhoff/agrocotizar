@@ -55,8 +55,8 @@ function getUrls() {
       ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
       : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
     padronUrl: isProd
-      ? 'https://aws.afip.gov.ar/sr-padron/v2/persona'
-      : 'https://awshomo.afip.gov.ar/sr-padron/v2/persona',
+      ? 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13'
+      : 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13',
     isProd,
   }
 }
@@ -267,41 +267,81 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     })
   }
 
-  const { wsaaUrl, padronUrl, isProd: usingProd } = getUrls()
+  const { wsaaUrl, padronUrl } = getUrls()
 
   try {
     const { token: wsaaToken, sign } = (await readCachedToken()) ?? (await fetchFreshToken(certPem, keyPem, wsaaUrl))
 
-    const afipFetch = (url: string, token: string, sign: string) => undiciFetch(url, {
-      headers: { Authorization: `WSAA token="${token}",sign="${sign}"`, Accept: 'application/json' },
+    const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ns2="http://a13.soap.ws.server.puc.sr/">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <ns2:getPersona>
+      <token>${wsaaToken}</token>
+      <sign>${sign}</sign>
+      <cuitRepresentada>${afipCuit}</cuitRepresentada>
+      <idPersona>${cuit}</idPersona>
+    </ns2:getPersona>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+    const padronRes = await undiciFetch(padronUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=UTF-8',
+        'SOAPAction': '"http://a13.soap.ws.server.puc.sr/getPersona"',
+      },
+      body: soapBody,
       signal: AbortSignal.timeout(15_000),
       dispatcher: tlsAgent as never,
     })
-
-    const padronRes = await afipFetch(`${padronUrl}/${cuit}`, wsaaToken, sign)
-    const text = await padronRes.text()
+    const xml = await padronRes.text()
 
     if (!padronRes.ok) {
-      if (padronRes.status === 401) {
-        memCache = null
-        const { token: t2, sign: s2 } = await fetchFreshToken(certPem, keyPem, wsaaUrl)
-        const res2 = await afipFetch(`${padronUrl}/${cuit}`, t2, s2)
-        const text2 = await res2.text()
-        if (!res2.ok) return send(res, res2.status >= 500 ? 502 : res2.status, cors,
-          { error: 'PADRON_ERROR', status: res2.status, message: text2.substring(0, 200) })
-        try { return send(res, 200, cors, JSON.parse(text2)) } catch {
-          return send(res, 502, cors, { error: 'PADRON_PARSE_ERROR', message: text2.substring(0, 200) })
-        }
-      }
       return send(res, padronRes.status >= 500 ? 502 : padronRes.status, cors,
-        { error: 'PADRON_ERROR', status: padronRes.status, env: usingProd ? 'prod' : 'homo', url: `${padronUrl}/${cuit}`, message: text.substring(0, 200) })
+        { error: 'PADRON_ERROR', status: padronRes.status, url: padronUrl, message: xml.substring(0, 300) })
     }
 
-    try {
-      return send(res, 200, cors, JSON.parse(text))
-    } catch {
-      return send(res, 502, cors, { error: 'PADRON_PARSE_ERROR', message: text.substring(0, 200) })
+    // Parse SOAP response — extract <personaReturn> content
+    const faultMsg = xml.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1]?.trim()
+    if (faultMsg) {
+      return send(res, 400, cors, { error: 'PADRON_FAULT', message: faultMsg })
     }
+
+    const personaXml = xml.match(/<personaReturn>([\s\S]*?)<\/personaReturn>/)?.[1] ?? xml
+
+    // Build a normalized object similar to what A5 returns so the frontend works without changes
+    const extractFrom = (src: string, tag: string) => src.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() ?? ''
+
+    const domicilioFiscalXml = personaXml.match(/<domicilioFiscal>([\s\S]*?)<\/domicilioFiscal>/)?.[1] ?? ''
+    const actividadesXml = [...personaXml.matchAll(/<actividadesEconomicas>([\s\S]*?)<\/actividadesEconomicas>/g)]
+
+    const data = {
+      idPersona:   extractFrom(personaXml, 'idPersona'),
+      nombre:      extractFrom(personaXml, 'nombre'),
+      denominacion: extractFrom(personaXml, 'denominacion') || extractFrom(personaXml, 'nombre'),
+      tipoPersona: extractFrom(personaXml, 'tipoPersona'),
+      tipoClave:   extractFrom(personaXml, 'tipoClave'),
+      estadoClave: extractFrom(personaXml, 'estadoClave'),
+      categoriasIVA: (() => {
+        const desc = extractFrom(personaXml, 'descripcionIVA') || extractFrom(personaXml, 'categoriasIVA')
+        return desc ? [{ descripcion: desc }] : []
+      })(),
+      domicilioFiscal: domicilioFiscalXml ? {
+        direccion:            extractFrom(domicilioFiscalXml, 'direccion'),
+        localidad:            extractFrom(domicilioFiscalXml, 'localidad') || extractFrom(domicilioFiscalXml, 'descripcionLocalidad'),
+        descripcionProvincia: extractFrom(domicilioFiscalXml, 'descripcionProvincia'),
+        codPostal:            extractFrom(domicilioFiscalXml, 'codPostal'),
+      } : undefined,
+      actividades: actividadesXml.map(a => ({
+        orden: parseInt(extractFrom(a, 'orden') || '0'),
+        descripcionActividad: extractFrom(a, 'descripcionActividad') || extractFrom(a, 'actividad'),
+      })),
+      _rawXml: xml.substring(0, 500),
+    }
+
+    return send(res, 200, cors, { datosGenerales: data })
   } catch (err) {
     const msg = (err as Error).message ?? String(err)
     return send(res, 500, cors, { error: 'WSAA_ERROR', message: msg })
