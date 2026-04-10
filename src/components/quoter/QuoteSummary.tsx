@@ -4,7 +4,7 @@ import { fmt, fmtCurrency } from '@/utils'
 import { Printer, RotateCcw, Save, Loader2, MessageCircle, Mail, ChevronDown, ChevronUp, Bell, X, Share2, Copy, Check, Download, Link, AlertTriangle } from 'lucide-react'
 import { Button, Input, Label, FieldGroup, Select, Textarea } from '@/components/ui'
 import { cn } from '@/utils'
-import { downloadQuotePDF, buildQuotePDFFile, buildWhatsAppText, buildEmailSubject, buildEmailBody, uploadQuotePDF } from '@/lib/pdf/QuotePDF'
+import { downloadQuotePDF, buildQuotePDFFile, buildWhatsAppText, buildEmailSubject, buildEmailBody, uploadQuotePDF, type UploadResult } from '@/lib/pdf/QuotePDF'
 import { useSaveQuote } from '@/hooks/useSupabase'
 import { useClientStore } from '@/store/clientStore'
 import { useCRMStore } from '@/store/crmStore'
@@ -90,6 +90,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
 }) {
   const [status, setStatus] = useState<'preparing' | 'ready' | 'fallback'>('preparing')
   const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [sharingNative, setSharingNative] = useState(false)
   const fileRef = useRef<File | null>(null)
@@ -100,10 +101,11 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
       const file = await buildQuotePDFFile(quote)
       if (cancelled) return
       fileRef.current = file
-      const url = await uploadQuotePDF(quote)
+      const result = await uploadQuotePDF(quote)
       if (cancelled) return
-      if (url) {
-        setShareUrl(url)
+      setUploadResult(result)
+      if (result.ok) {
+        setShareUrl(result.url)
         setStatus('ready')
       } else {
         setStatus('fallback')
@@ -216,9 +218,18 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
         {status === 'fallback' && (
           <div className="flex items-start gap-2 px-3 py-2.5 bg-[#FEF9EE] border border-[#F59E0B]/30 rounded-lg mb-4">
             <AlertTriangle size={13} className="text-[#D97706] shrink-0 mt-0.5" />
-            <p className="text-[11px] text-[#92400E]">
-              No se pudo generar el enlace. Descargá el PDF y adjuntalo manualmente al mensaje.
-            </p>
+            <div className="text-[11px] text-[#92400E] space-y-1">
+              {uploadResult && !uploadResult.ok && uploadResult.reason === 'bucket_missing' ? (
+                <>
+                  <p className="font-semibold">El storage de PDFs no está configurado.</p>
+                  <p>En Supabase Dashboard → Storage → "New bucket", creá un bucket llamado <span className="font-mono font-bold">quote-pdfs</span> (privado). Después los enlaces funcionarán automáticamente.</p>
+                </>
+              ) : uploadResult && !uploadResult.ok && uploadResult.reason === 'auth' ? (
+                <p>Sesión expirada. Cerrá sesión y volvé a ingresar.</p>
+              ) : (
+                <p>No se pudo generar el enlace. Descargá el PDF y adjuntalo manualmente.</p>
+              )}
+            </div>
           </div>
         )}
 

@@ -466,14 +466,21 @@ export async function shareQuotePDF(
   }
 }
 
+export type UploadResult =
+  | { ok: true;  url: string }
+  | { ok: false; reason: 'bucket_missing' | 'auth' | 'upload' | 'sign'; detail: string }
+
 /**
  * Sube el PDF a Supabase Storage y devuelve una URL firmada válida 30 días.
- * Retorna null si el bucket no existe o hay un error (el llamador debe manejar el fallback).
+ * Siempre devuelve un objeto con `ok: true | false` para que el llamador
+ * pueda mostrar un error accionable.
  */
-export async function uploadQuotePDF(quote: Quote): Promise<string | null> {
+export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user?.id) return null
+    if (!session?.user?.id) {
+      return { ok: false, reason: 'auth', detail: 'No hay sesión activa' }
+    }
 
     const file = await buildQuotePDFFile(quote)
     const path = `${session.user.id}/${quote.quote_number}.pdf`
@@ -482,16 +489,27 @@ export async function uploadQuotePDF(quote: Quote): Promise<string | null> {
       .from('quote-pdfs')
       .upload(path, file, { contentType: 'application/pdf', upsert: true })
 
-    if (uploadError) return null
+    if (uploadError) {
+      const msg = uploadError.message ?? ''
+      const isMissing = /not.found|bucket|no.*exist/i.test(msg)
+      return {
+        ok: false,
+        reason: isMissing ? 'bucket_missing' : 'upload',
+        detail: msg,
+      }
+    }
 
     const { data: signed, error: signError } = await supabase.storage
       .from('quote-pdfs')
       .createSignedUrl(path, 60 * 60 * 24 * 30) // 30 días
 
-    if (signError || !signed?.signedUrl) return null
-    return signed.signedUrl
-  } catch {
-    return null
+    if (signError || !signed?.signedUrl) {
+      return { ok: false, reason: 'sign', detail: signError?.message ?? 'Sin URL firmada' }
+    }
+
+    return { ok: true, url: signed.signedUrl }
+  } catch (e) {
+    return { ok: false, reason: 'upload', detail: String(e) }
   }
 }
 
