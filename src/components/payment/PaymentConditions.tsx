@@ -1,26 +1,26 @@
 import { useState } from 'react'
 import { useQuoteStore } from '@/store/quoteStore'
 import { useCatalogStore } from '@/store/catalogStore'
-import { Card, CardTitle, FieldGroup, Label, Input, Select, Button } from '@/components/ui'
+import { Card, CardTitle, FieldGroup, Label, Input, Select } from '@/components/ui'
 import { GeneralDiscounts } from '@/components/quoter/ItemsTable'
-import { generateCheckDates, fmt, cn } from '@/utils'
+import { generateCheckDates, cn } from '@/utils'
 import { CheckCircle2, Settings2 } from 'lucide-react'
 import type { PaymentMode, PaymentConditionTemplate } from '@/types'
 
 // ─── Mode metadata ────────────────────────────────────────────────────────────
 
-const MODES: { id: PaymentMode; icon: string; label: string; desc: string }[] = [
-  { id: 'contado',    icon: '💵', label: 'Contado',           desc: 'Pago inmediato · Mejor descuento' },
-  { id: 'cheques',    icon: '🧾', label: 'Cheques diferidos', desc: 'Hasta 12 valores · Sin interés' },
-  { id: 'financiado', icon: '🏦', label: 'Financiado',        desc: 'Banco · Cuotas · Tasa pactada' },
-  { id: 'leasing',    icon: '📋', label: 'Leasing',           desc: 'Canon mensual · Opción de compra' },
+const MODES: { id: PaymentMode; label: string; desc: string }[] = [
+  { id: 'contado',    label: 'Contado',           desc: 'Pago inmediato · Mejor descuento' },
+  { id: 'cheques',    label: 'Cheques diferidos', desc: 'Hasta 12 valores · Sin interés' },
+  { id: 'financiado', label: 'Financiado',        desc: 'Banco · Cuotas · Tasa pactada' },
+  { id: 'leasing',    label: 'Leasing',           desc: 'Canon mensual · Opción de compra' },
 ]
 
-const MODE_META: Record<string, { icon: string; color: string; bg: string }> = {
-  contado:    { icon: '💵', color: 'text-[#16A34A]', bg: 'bg-[#F0FDF4] border-[#22C55E]/30' },
-  cheques:    { icon: '🧾', color: 'text-[#92400E]', bg: 'bg-[#FFFBEB] border-[#F59E0B]/30' },
-  financiado: { icon: '🏦', color: 'text-[#1D4ED8]', bg: 'bg-[#EFF6FF] border-[#93C5FD]/50' },
-  leasing:    { icon: '📋', color: 'text-[#6D28D9]', bg: 'bg-[#F5F3FF] border-[#C4B5FD]/50' },
+const MODE_COLOR: Record<string, string> = {
+  contado:    'text-[#16A34A]',
+  cheques:    'text-[#92400E]',
+  financiado: 'text-[#1D4ED8]',
+  leasing:    'text-[#6D28D9]',
 }
 
 // ─── Payment detail panel (manual mode) ───────────────────────────────────────
@@ -212,53 +212,78 @@ function PaymentDetailPanel() {
   )
 }
 
-// ─── List conditions quick-selector ───────────────────────────────────────────
+// ─── List conditions checkbox selector ────────────────────────────────────────
 
 function ListConditionSelector({ conditions }: { conditions: PaymentConditionTemplate[] }) {
-  const { quote, setPayment } = useQuoteStore()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { quote, setPayment, setPaymentComparisonConditions } = useQuoteStore()
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set(conditions.map(c => c.id)))
   const [showCustom, setShowCustom] = useState(false)
 
   function applyTemplate(t: PaymentConditionTemplate) {
-    setSelectedId(t.id)
+    setActiveId(t.id)
     setShowCustom(false)
     setPayment({ ...t.condition })
   }
 
+  function toggleCheck(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      setPaymentComparisonConditions(conditions.filter(c => next.has(c.id)))
+      return next
+    })
+  }
+
   return (
     <div className="space-y-4">
-      {/* Condition cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {conditions.map(t => {
-          const meta = MODE_META[t.condition.mode] ?? MODE_META.contado
-          const isSelected = selectedId === t.id
+      {/* Hint */}
+      <div className="text-[11px] text-[#94A3B8] px-0.5">
+        Hacé click en una fila para aplicarla a la cotización. Las condiciones marcadas aparecen en la comparativa del PDF.
+      </div>
+
+      {/* Checkbox list */}
+      <div className="rounded-xl border border-[#E2E8F0] overflow-hidden">
+        {conditions.map((t, i) => {
+          const isActive  = activeId === t.id
+          const isChecked = checkedIds.has(t.id)
+          const color     = MODE_COLOR[t.condition.mode] ?? 'text-[#64748B]'
           return (
-            <button
+            <div
               key={t.id}
-              onClick={() => applyTemplate(t)}
               className={cn(
-                'text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer',
-                isSelected
-                  ? 'border-[#22C55E] bg-[#F0FDF4] shadow-sm'
-                  : 'border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#22C55E]/40 hover:bg-white'
+                'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none',
+                i > 0 && 'border-t border-[#F1F5F9]',
+                isActive ? 'bg-[#F0FDF4]' : 'bg-white hover:bg-[#F8FAFC]'
               )}
+              onClick={() => applyTemplate(t)}
             >
-              <div className="flex items-center gap-3">
-                <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0 border', meta.bg)}>
-                  {meta.icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold text-[#0F172A] truncate">{t.label}</div>
-                  <div className={cn('text-[11px] font-medium capitalize mt-0.5', meta.color)}>
+              {/* Checkbox — controls PDF visibility */}
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => {}}
+                onClick={e => toggleCheck(t.id, e)}
+                className="w-4 h-4 accent-[#22C55E] cursor-pointer shrink-0"
+              />
+
+              {/* Condition info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[13px] font-semibold text-[#0F172A]">{t.label}</span>
+                  <span className={cn('text-[11px] font-medium capitalize', color)}>
                     {t.condition.mode}
-                    {t.condition.discount_pct ? ` · ${t.condition.discount_pct}% desc.` : ''}
-                    {t.condition.num_checks   ? ` · ${t.condition.num_checks} cheques` : ''}
+                    {t.condition.discount_pct ? ` · ${t.condition.discount_pct}% dto.` : ''}
+                    {t.condition.num_checks   ? ` · ${t.condition.num_checks} cheques`  : ''}
                     {t.condition.installments ? ` · ${t.condition.installments} cuotas` : ''}
-                  </div>
+                  </span>
                 </div>
-                {isSelected && <CheckCircle2 size={16} className="text-[#22C55E] shrink-0" />}
               </div>
-            </button>
+
+              {isActive && <CheckCircle2 size={15} className="text-[#22C55E] shrink-0" />}
+            </div>
           )
         })}
       </div>
@@ -267,7 +292,7 @@ function ListConditionSelector({ conditions }: { conditions: PaymentConditionTem
       <button
         onClick={() => setShowCustom(v => !v)}
         className={cn(
-          'flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer px-1',
+          'flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer px-0.5',
           showCustom ? 'text-[#0F172A]' : 'text-[#94A3B8] hover:text-[#64748B]'
         )}
       >
@@ -290,16 +315,15 @@ function ListConditionSelector({ conditions }: { conditions: PaymentConditionTem
                     leasing:    { mode: 'leasing',    discount_pct: 0,  lease_term_months: 36, buyout_pct: 10, lease_rate: 3.8 },
                   }
                   setPayment(defaults[m.id])
-                  setSelectedId(null)
+                  setActiveId(null)
                 }}
                 className={cn(
-                  'flex flex-col items-center gap-1.5 p-4 rounded-xl border transition-all cursor-pointer',
+                  'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all cursor-pointer',
                   quote.payment.mode === m.id
                     ? 'bg-[#F0FDF4] border-[#22C55E] border-2 shadow-sm'
                     : 'bg-white border-[#E2E8F0] hover:border-[#22C55E]/40 hover:bg-[#F8FAFC]'
                 )}
               >
-                <span className="text-2xl leading-none">{m.icon}</span>
                 <span className={cn('text-[13px] font-semibold', quote.payment.mode === m.id ? 'text-[#0F172A]' : 'text-[#64748B]')}>{m.label}</span>
                 <span className={cn('text-[10px] leading-snug text-center', quote.payment.mode === m.id ? 'text-[#22C55E]' : 'text-[#94A3B8]')}>{m.desc}</span>
               </button>
@@ -429,13 +453,12 @@ export function PaymentConditions({ priceListId }: { priceListId?: string | null
                   setPayment(defaults[m.id])
                 }}
                 className={cn(
-                  'flex flex-col items-center gap-1.5 p-4 rounded-xl border transition-all cursor-pointer',
+                  'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all cursor-pointer',
                   payment.mode === m.id
                     ? 'bg-[#F0FDF4] border-[#22C55E] border-2 shadow-sm'
                     : 'bg-white border-[#E2E8F0] hover:border-[#22C55E]/40 hover:bg-[#F8FAFC]'
                 )}
               >
-                <span className="text-2xl leading-none">{m.icon}</span>
                 <span className={cn('text-[13px] font-semibold', payment.mode === m.id ? 'text-[#0F172A]' : 'text-[#64748B]')}>{m.label}</span>
                 <span className={cn('text-[10px] leading-snug text-center', payment.mode === m.id ? 'text-[#22C55E]' : 'text-[#94A3B8]')}>{m.desc}</span>
               </button>

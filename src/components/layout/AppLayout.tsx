@@ -106,10 +106,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="px-4 py-4 border-t border-white/[0.07] flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-[#22C55E]/20 flex items-center justify-center shrink-0">
-            <span className="text-[#22C55E] text-[11px] font-bold">AC</span>
+            <span className="text-[#22C55E] text-[11px] font-bold">CG</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-white/80 truncate">AgroCotizar</div>
+            <div className="text-[13px] font-medium text-white/80 truncate">Cotizagro</div>
             <div className="text-[11px] text-white/40">Sistema de cotización</div>
           </div>
           <button

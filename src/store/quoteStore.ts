@@ -150,6 +150,9 @@ interface QuoteStore {
   // Delivery
   setDelivery: (delivery: Partial<QuoteDelivery>) => void
 
+  // Payment comparison conditions (for PDF table)
+  setPaymentComparisonConditions: (conditions: PaymentConditionTemplate[]) => void
+
   // Initialize quote from a price list (sets payment from list's first condition)
   initFromPriceList: (priceListId: string, paymentTemplate?: PaymentConditionTemplate) => void
 
@@ -222,11 +225,12 @@ export const useQuoteStore = create<QuoteStore>()(
         setTaxes: (taxes) => upd({ taxes: { ...get().quote.taxes, ...taxes } }),
         setDelivery: (delivery) => upd({ delivery: { ...get().quote.delivery, ...delivery } }),
 
+        setPaymentComparisonConditions: (conditions) => upd({ payment_comparison_conditions: conditions }),
+
         initFromPriceList: (priceListId, paymentTemplate) => {
           const q = newQuote()
           const withList: Quote = {
             ...q,
-            // Store which price list this quote is based on (for item picker)
             notes: undefined,
             payment: paymentTemplate ? { ...paymentTemplate.condition } : q.payment,
           }

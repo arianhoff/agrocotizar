@@ -172,7 +172,7 @@ export function DashboardPage() {
     }, 0)
   const recentQuotes = [...quotes].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5)
 
-  const companyName = company.name || 'AgroCotizar'
+  const companyName = company.name || 'Cotizagro'
 
   const STATS = [
     {

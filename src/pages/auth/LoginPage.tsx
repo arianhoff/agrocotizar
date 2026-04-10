@@ -263,7 +263,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
         </div>
 
         <p className="text-center text-[11px] text-white/20 mt-6">
-          © {new Date().getFullYear()} AgroCotizar
+          © {new Date().getFullYear()} Cotizagro
         </p>
       </div>
 

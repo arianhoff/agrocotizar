@@ -4,7 +4,6 @@ import {
 import type { Quote, QuoteTotals } from '@/types'
 import { computeTotals } from '@/store/quoteStore'
 import { fmt, fmtDate } from '@/utils'
-import { GEA_PAYMENT_CONDITIONS } from '@/data/gea'
 import { supabase } from '@/lib/supabase/client'
 
 // ─── Payment comparison helper ────────────────────────────────
@@ -15,20 +14,50 @@ interface PaymentOption {
   detail: string
   total: number
   total_ars: number
+  isActive?: boolean
+}
+
+/** Builds comparison rows from user-selected list conditions (if any), otherwise hardcoded defaults. */
+function buildComparisonRows(quote: Quote): PaymentOption[] {
+  if (quote.payment_comparison_conditions && quote.payment_comparison_conditions.length > 0) {
+    return quote.payment_comparison_conditions.map(t => {
+      const t_quote = { ...quote, payment: { ...quote.payment, ...t.condition } }
+      const t_totals = computeTotals(t_quote)
+      const detail = [
+        t.condition.num_checks ? `${t.condition.num_checks} valores` : '',
+        t.condition.installments ? `${t.condition.installments} cuotas` : '',
+        t.condition.financial_entity ?? '',
+      ].filter(Boolean).join(' · ') || t.condition.mode
+      const isActive =
+        quote.payment.mode === t.condition.mode &&
+        (quote.payment.discount_pct ?? 0) === (t.condition.discount_pct ?? 0)
+      return {
+        label: t.label,
+        discount: t.condition.discount_pct ?? 0,
+        detail,
+        total: t_totals.total,
+        total_ars: t_totals.total * quote.exchange_rate,
+        isActive,
+      }
+    })
+  }
+  // Fallback: hardcoded GEA conditions
+  const CONDITIONS = [
+    { label: 'Contado',           discount: 20, detail: 'Transferencia / E.Cheq mismo día',      mode: 'contado' as const },
+    { label: '3 valores',         discount: 15, detail: 'E.Cheq 0-30-60 días',                   mode: 'cheques' as const },
+    { label: '7 valores',         discount: 8,  detail: 'E.Cheq 0-30-...-180 días',              mode: 'cheques' as const },
+    { label: '10 valores',        discount: 3,  detail: 'E.Cheq 0-30-...-270 días',              mode: 'cheques' as const },
+    { label: '12 valores s/int.', discount: 0,  detail: 'E.Cheq 0-30-...-330 días, sin interés', mode: 'cheques' as const },
+  ]
+  return CONDITIONS.map((c, i) => {
+    const t = computeTotals({ ...quote, payment: { ...quote.payment, mode: c.mode, discount_pct: c.discount } })
+    const isActive = quote.payment.mode === c.mode && (quote.payment.discount_pct ?? 0) === c.discount
+    return { ...c, total: t.total, total_ars: t.total * quote.exchange_rate, isActive }
+  })
 }
 
 export function computePaymentOptions(quote: Quote): PaymentOption[] {
-  const CONDITIONS = [
-    { label: 'Contado',           discount: 20, detail: 'Transferencia / E.Cheq mismo día',    mode: 'contado'  as const },
-    { label: '3 valores',         discount: 15, detail: 'E.Cheq 0-30-60 días',                  mode: 'cheques'  as const },
-    { label: '7 valores',         discount: 8,  detail: 'E.Cheq 0-30-...-180 días',             mode: 'cheques'  as const },
-    { label: '10 valores',        discount: 3,  detail: 'E.Cheq 0-30-...-270 días',             mode: 'cheques'  as const },
-    { label: '12 valores s/int.', discount: 0,  detail: 'E.Cheq 0-30-...-330 días, sin interés', mode: 'cheques' as const },
-  ]
-  return CONDITIONS.map(c => {
-    const t = computeTotals({ ...quote, payment: { ...quote.payment, mode: c.mode, discount_pct: c.discount } })
-    return { ...c, total: t.total, total_ars: t.total * quote.exchange_rate }
-  })
+  return buildComparisonRows(quote)
 }
 
 // ─── WhatsApp & Email helpers ─────────────────────────────────
@@ -39,7 +68,7 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
-  const options = computePaymentOptions(quote)
+  const options = buildComparisonRows(quote)
 
   const lines: string[] = [
     '🌾 *GEA Gergolet Agrícola*',
@@ -203,7 +232,7 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
-  const paymentOptions = computePaymentOptions(quote)
+  const paymentOptions = buildComparisonRows(quote)
 
   return (
     <Document>
@@ -212,7 +241,7 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         {/* ── Header ── */}
         <View style={S.header}>
           <View>
-            <Text style={S.logoText}>Agro<Text style={S.logoAccent}>Cotizar</Text></Text>
+            <Text style={S.logoText}>Cotiza<Text style={S.logoAccent}>gro</Text></Text>
             <Text style={S.logoSub}>MAQUINARIA AGRÍCOLA · ARGENTINA</Text>
           </View>
           <View style={S.headerRight}>
@@ -332,21 +361,18 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
           <Text style={[S.cmpHeaderText, { width: 90, textAlign: 'right' }]}>TOTAL PESOS</Text>
           <Text style={[S.cmpHeaderText, { width: 80, textAlign: 'right' }]}>TOTAL USD</Text>
         </View>
-        {paymentOptions.map((opt, i) => {
-          const isSelected = payment.mode === (i === 0 ? 'contado' : 'cheques') && payment.discount_pct === opt.discount
-          return (
-            <View key={opt.label} style={[S.cmpRow, isSelected ? S.cmpRowHighlight : (i % 2 === 1 ? { backgroundColor: '#FAFAF8' } : {})]}>
-              <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                {isSelected && <Text style={{ fontSize: 7, color: '#4A6741' }}>✓ </Text>}
-                <Text style={S.cmpCell}>{opt.label}</Text>
-                <Text style={{ fontSize: 7, color: '#8B9BAA', marginLeft: 4 }}>{opt.detail}</Text>
-              </View>
-              <Text style={[S.cmpDiscount, { width: 60 }]}>{opt.discount > 0 ? `${opt.discount}%` : '—'}</Text>
-              <Text style={[S.cmpCellGold, { width: 90 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
-              <Text style={[S.cmpCellGray, { width: 80 }]}>{usd(opt.total)}</Text>
+        {paymentOptions.map((opt, i) => (
+          <View key={opt.label} style={[S.cmpRow, opt.isActive ? S.cmpRowHighlight : (i % 2 === 1 ? { backgroundColor: '#FAFAF8' } : {})]}>
+            <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {opt.isActive && <Text style={{ fontSize: 7, color: '#4A6741' }}>✓ </Text>}
+              <Text style={S.cmpCell}>{opt.label}</Text>
+              <Text style={{ fontSize: 7, color: '#8B9BAA', marginLeft: 4 }}>{opt.detail}</Text>
             </View>
-          )
-        })}
+            <Text style={[S.cmpDiscount, { width: 60 }]}>{opt.discount > 0 ? `${opt.discount}%` : '—'}</Text>
+            <Text style={[S.cmpCellGold, { width: 90 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
+            <Text style={[S.cmpCellGray, { width: 80 }]}>{usd(opt.total)}</Text>
+          </View>
+        ))}
         <View style={{ marginTop: 4, paddingHorizontal: 8 }}>
           <Text style={{ fontSize: 7, color: '#8B9BAA' }}>
             Precios en pesos argentinos. TC Dólar BNA vendedor: ${quote.exchange_rate.toLocaleString('es-AR')}. Incluye IVA 10,5%.
@@ -371,7 +397,7 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
 
         {/* ── Footer ── */}
         <View style={S.footer}>
-          <Text style={S.footerText}>AgroCotizar · {quote.quote_number} · {fmtDate(quote.created_at)}</Text>
+          <Text style={S.footerText}>Cotizagro · {quote.quote_number} · {fmtDate(quote.created_at)}</Text>
           <Text style={S.footerText}>Gergolet Agrícola S.A. · consultas@gergolet.com.ar</Text>
         </View>
 

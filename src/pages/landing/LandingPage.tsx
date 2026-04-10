@@ -109,7 +109,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
       <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0F1120]/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="text-[20px] font-bold tracking-tight shrink-0">
-            Agro<span className="text-[#22C55E]">Cotizar</span>
+            Cotiza<span className="text-[#22C55E]">gro</span>
           </div>
 
           {/* Desktop nav */}
@@ -219,7 +219,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
                 <div className="w-3 h-3 rounded-full bg-[#22C55E]/60" />
               </div>
               <div className="flex-1 mx-3 bg-white/[0.05] rounded-md px-3 py-1 text-[11px] text-white/30 font-mono truncate">
-                agrocotizar.app/quoter
+                cotizagro.app/quoter
               </div>
             </div>
             {/* Mock content */}
@@ -435,10 +435,10 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
       <footer className="border-t border-white/[0.05] py-8 sm:py-10 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-center sm:text-left">
           <div className="text-[18px] font-bold">
-            Agro<span className="text-[#22C55E]">Cotizar</span>
+            Cotiza<span className="text-[#22C55E]">gro</span>
           </div>
           <div className="text-[12px] text-white/25">
-            © {new Date().getFullYear()} AgroCotizar · Maquinaria Agrícola Argentina
+            © {new Date().getFullYear()} Cotizagro · Maquinaria Agrícola Argentina
           </div>
           <button
             onClick={onLogin}

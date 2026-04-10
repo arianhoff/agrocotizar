@@ -169,6 +169,8 @@ export interface Quote {
   updated_at: string
   // computed totals (derived, not stored)
   totals?: QuoteTotals
+  // user-selected conditions to show in PDF comparison table
+  payment_comparison_conditions?: PaymentConditionTemplate[]
 }
 
 export interface QuoteTotals {
