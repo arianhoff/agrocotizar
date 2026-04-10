@@ -176,7 +176,7 @@ export function useLoadProfile() {
         .from('profiles')
         .select('settings, email')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
       if (error) return null
       return data
     },
