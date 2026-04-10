@@ -1,87 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuoteStore, computeTotals } from '@/store/quoteStore'
 import { fmt, fmtCurrency } from '@/utils'
-import { Printer, RotateCcw, Save, Loader2, MessageCircle, Mail, ChevronDown, ChevronUp, Bell, X, Share2, Copy, Check, Download, Link, AlertTriangle } from 'lucide-react'
-import { Button, Input, Label, FieldGroup, Select, Textarea } from '@/components/ui'
+import { Printer, RotateCcw, Save, Loader2, MessageCircle, Mail, ChevronDown, ChevronUp, X, Share2, Copy, Check, Download, Link, AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { cn } from '@/utils'
 import { downloadQuotePDF, buildQuotePDFFile, buildWhatsAppText, buildEmailSubject, buildEmailBody, uploadQuotePDF, type UploadResult } from '@/lib/pdf/QuotePDF'
 import { useSaveQuote } from '@/hooks/useSupabase'
 import { useClientStore } from '@/store/clientStore'
 import { useCRMStore } from '@/store/crmStore'
 import type { Quote, QuoteTotals } from '@/types'
-
-// ─── Follow-up quick modal (shown after sharing) ─────────────────────────────
-
-function QuickFollowUpModal({ quoteNumber, clientName, clientPhone, clientEmail, onClose }: {
-  quoteNumber: string; clientName: string
-  clientPhone?: string; clientEmail?: string
-  onClose: () => void
-}) {
-  const { addFollowUp, sellerEmail } = useCRMStore()
-  const today = new Date().toISOString().split('T')[0]
-  const [form, setForm] = useState({
-    scheduled_date: today,
-    reminder_days: 3,
-    notes: '',
-    seller_email: sellerEmail ?? '',
-  })
-
-  const handleSave = () => {
-    addFollowUp({
-      quote_id: quoteNumber,
-      quote_number: quoteNumber,
-      client_name: clientName,
-      client_phone: clientPhone,
-      client_email: clientEmail,
-      seller_email: form.seller_email || undefined,
-      scheduled_date: form.scheduled_date,
-      reminder_days: form.reminder_days,
-      notes: form.notes || `Seguimiento post-envío — ${quoteNumber}`,
-      status: 'pending',
-      sent_at: today,
-    })
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-sm bg-white border border-[#E2E8F0] rounded-xl shadow-xl p-6" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-[14px] font-semibold text-[#0F172A]">Agendar seguimiento</div>
-          <button onClick={onClose} className="text-[#94A3B8] hover:text-[#0F172A] cursor-pointer"><X size={16} /></button>
-        </div>
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[#F0FDF4] border border-[#22C55E]/20 rounded-lg">
-          <Bell size={12} className="text-[#22C55E] shrink-0" />
-          <p className="text-[11px] text-[#16A34A]">Cotización enviada a <b>{clientName}</b>. ¿Querés agendar un recordatorio?</p>
-        </div>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <FieldGroup>
-              <Label>Primer contacto</Label>
-              <Input type="date" value={form.scheduled_date} min={today}
-                onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />
-            </FieldGroup>
-            <FieldGroup>
-              <Label>Recordar cada</Label>
-              <Select value={form.reminder_days} onChange={e => setForm(f => ({ ...f, reminder_days: Number(e.target.value) }))}>
-                {[1, 2, 3, 5, 7, 10, 14].map(d => <option key={d} value={d}>{d} {d === 1 ? 'día' : 'días'}</option>)}
-              </Select>
-            </FieldGroup>
-          </div>
-          <FieldGroup>
-            <Label>Notas</Label>
-            <Textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Ej: Preguntar si revisó la propuesta..." />
-          </FieldGroup>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <Button variant="ghost" className="flex-1" onClick={onClose}>Omitir</Button>
-          <Button variant="primary" className="flex-1" onClick={handleSave}>Agendar</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Share Modal ─────────────────────────────────────────────────────────────
 
@@ -312,10 +239,10 @@ export function QuoteSummary() {
   const arsVal = (n: number) => exchange_rate > 0 ? `$ ${fmt(n * exchange_rate)}` : sym(n)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [collapsed, setCollapsed]   = useState(false)
-  const [showFollowUp, setShowFollowUp] = useState(false)
   const [showShare, setShowShare]   = useState(false)
   const saveQuote = useSaveQuote()
   const { upsertFromQuote } = useClientStore()
+  const { addFollowUp, sellerEmail } = useCRMStore()
 
   const hasItems = quote.items.length > 0
 
@@ -343,32 +270,38 @@ export function QuoteSummary() {
   }
 
   const afterShare = () => {
+    const today = new Date().toISOString().split('T')[0]
     // Save client to CRM
     if (quote.client?.name?.trim()) {
       upsertFromQuote({
         ...quote.client,
         name: quote.client.name,
         quote_number: quote.quote_number,
-        quote_date: new Date().toISOString().split('T')[0],
+        quote_date: today,
       })
     }
-    // Show follow-up modal
+    // Auto-create follow-up in 5 days (no modal)
     if (quote.client?.name?.trim()) {
-      setShowFollowUp(true)
+      const followUpDate = new Date()
+      followUpDate.setDate(followUpDate.getDate() + 5)
+      addFollowUp({
+        quote_id: quote.quote_number,
+        quote_number: quote.quote_number,
+        client_name: quote.client.name,
+        client_phone: quote.client.phone,
+        client_email: quote.client.email,
+        seller_email: sellerEmail || undefined,
+        scheduled_date: followUpDate.toISOString().split('T')[0],
+        reminder_days: 5,
+        notes: `Seguimiento post-envío — ${quote.quote_number}`,
+        status: 'pending',
+        sent_at: today,
+      })
     }
   }
 
   return (
     <>
-    {showFollowUp && (
-      <QuickFollowUpModal
-        quoteNumber={quote.quote_number}
-        clientName={quote.client.name}
-        clientPhone={quote.client.phone}
-        clientEmail={quote.client.email}
-        onClose={() => setShowFollowUp(false)}
-      />
-    )}
     {showShare && (
       <ShareModal
         quote={{ ...quote, totals } as any}

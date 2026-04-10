@@ -109,7 +109,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <span className="text-[#22C55E] text-[11px] font-bold">CG</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-white/80 truncate">Cotizagro</div>
+            <div className="text-[13px] font-medium text-white/80 truncate">Cotiz<span className="text-[#22C55E]">agro</span></div>
             <div className="text-[11px] text-white/40">Sistema de cotización</div>
           </div>
           <button

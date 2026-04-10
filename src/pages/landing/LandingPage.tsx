@@ -109,7 +109,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
       <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0F1120]/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="text-[20px] font-bold tracking-tight shrink-0">
-            Cotiza<span className="text-[#22C55E]">gro</span>
+            Cotiz<span className="text-[#22C55E]">agro</span>
           </div>
 
           {/* Desktop nav */}
@@ -435,7 +435,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
       <footer className="border-t border-white/[0.05] py-8 sm:py-10 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-center sm:text-left">
           <div className="text-[18px] font-bold">
-            Cotiza<span className="text-[#22C55E]">gro</span>
+            Cotiz<span className="text-[#22C55E]">agro</span>
           </div>
           <div className="text-[12px] text-white/25">
             © {new Date().getFullYear()} Cotizagro · Maquinaria Agrícola Argentina

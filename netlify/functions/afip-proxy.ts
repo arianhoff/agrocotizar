@@ -7,12 +7,17 @@
  * 3. Envía al WSAA → obtiene TOKEN + SIGN (válidos 12hs)
  * 4. Llama a ws_sr_padron_a5 con TOKEN + SIGN → datos del contribuyente
  *
+ * El token se persiste en Supabase (tabla afip_token_cache) para sobrevivir
+ * cold starts de Netlify — así se evita el límite de AFIP por certificado.
+ *
  * Variables de entorno requeridas (Netlify):
- *   AFIP_CUIT    — CUIT del contribuyente (ej: 20392481770)
- *   AFIP_CERT    — Certificado PEM firmado por AFIP
- *   AFIP_KEY     — Clave privada RSA en PEM
- *   SUPABASE_URL      — URL del proyecto Supabase
- *   SUPABASE_ANON_KEY — Clave anon pública de Supabase
+ *   AFIP_CUIT              — CUIT del contribuyente (ej: 20392481770)
+ *   AFIP_CERT              — Certificado PEM firmado por AFIP
+ *   AFIP_KEY               — Clave privada RSA en PEM
+ *   AFIP_ENV               — "prod" usa producción, cualquier otro valor usa homologación
+ *   SUPABASE_URL           — URL del proyecto Supabase
+ *   SUPABASE_SERVICE_ROLE_KEY — Service role key (para leer/escribir la caché sin RLS)
+ *   SUPABASE_ANON_KEY      — Fallback si no hay service role key
  */
 
 import type { Handler } from '@netlify/functions'
@@ -20,48 +25,117 @@ import * as forge from 'node-forge'
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from './_cors'
 
-// ─── Configuración ────────────────────────────────────────────────────────────
+// ─── Configuración URLs ───────────────────────────────────────────────────────
 
-const WSAA_URL  = 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms'
-const SERVICE   = 'ws_sr_padron_a5'
-const PADRON_URL = 'https://awshomo.afip.gov.ar/sr-padron/v2/persona'
-// Producción:
-// const WSAA_URL   = 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
-// const PADRON_URL = 'https://aws.afip.gov.ar/sr-padron/v2/persona'
+const isProd = (process.env.AFIP_ENV ?? '').toLowerCase() === 'prod'
 
-// Cache del token en memoria (válido hasta que expire, ~12hs)
-let cachedToken: { token: string; sign: string; expiry: Date } | null = null
+const WSAA_URL   = isProd
+  ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
+  : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms'
+
+const PADRON_URL = isProd
+  ? 'https://aws.afip.gov.ar/sr-padron/v2/persona'
+  : 'https://awshomo.afip.gov.ar/sr-padron/v2/persona'
+
+const SERVICE = 'ws_sr_padron_a5'
+
+// ─── In-memory cache (respaldo rápido entre hot invocations) ──────────────────
+
+let memCache: { token: string; sign: string; expiry: Date } | null = null
+
+// ─── Supabase client (service role para bypassear RLS) ───────────────────────
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+           ?? process.env.SUPABASE_ANON_KEY
+           ?? process.env.VITE_SUPABASE_ANON_KEY
+           ?? ''
+  if (!url || !key) return null
+  return createClient(url, key, { auth: { persistSession: false } })
+}
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
-async function verifySupabaseToken(token: string): Promise<boolean> {
+async function verifySupabaseToken(bearerToken: string): Promise<boolean> {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''
   const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? ''
   if (!supabaseUrl || !supabaseKey) return false
-
   const supabase = createClient(supabaseUrl, supabaseKey)
-  const { data: { user }, error } = await supabase.auth.getUser(token)
+  const { data: { user }, error } = await supabase.auth.getUser(bearerToken)
   return !error && !!user
+}
+
+// ─── Token cache: Supabase ────────────────────────────────────────────────────
+
+interface TokenRow { token: string; sign: string; expiry_at: string }
+
+async function readCachedToken(): Promise<{ token: string; sign: string } | null> {
+  // 1. Memory cache (fast path — same function instance)
+  if (memCache && memCache.expiry > new Date(Date.now() + 5 * 60_000)) {
+    return { token: memCache.token, sign: memCache.sign }
+  }
+
+  // 2. Supabase cache (survives cold starts)
+  const sb = getSupabase()
+  if (!sb) return null
+  try {
+    const { data } = await sb
+      .from('afip_token_cache')
+      .select('token, sign, expiry_at')
+      .eq('service', SERVICE)
+      .single<TokenRow>()
+    if (!data) return null
+    const expiry = new Date(data.expiry_at)
+    if (expiry > new Date(Date.now() + 5 * 60_000)) {
+      // Warm memory cache too
+      memCache = { token: data.token, sign: data.sign, expiry }
+      return { token: data.token, sign: data.sign }
+    }
+  } catch {
+    // Table might not exist yet — proceed to fetch fresh token
+  }
+  return null
+}
+
+async function saveCachedToken(token: string, sign: string, expiry: Date): Promise<void> {
+  memCache = { token, sign, expiry }
+  const sb = getSupabase()
+  if (!sb) return
+  try {
+    await sb.from('afip_token_cache').upsert({
+      service: SERVICE,
+      token,
+      sign,
+      expiry_at: expiry.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+  } catch {
+    // Non-fatal — in-memory cache is still available
+  }
 }
 
 // ─── Helpers WSAA ─────────────────────────────────────────────────────────────
 
 function buildTRA(): string {
-  const now    = new Date()
-  const from   = new Date(now.getTime() - 60_000)
-  const to     = new Date(now.getTime() + 12 * 3600_000)
+  const now  = new Date()
+  const from = new Date(now.getTime() - 60_000)
+  const to   = new Date(now.getTime() + 12 * 3600_000)
 
-  const fmt = (d: Date) => {
+  const fmtTs = (d: Date) => {
     const ar = new Date(d.getTime() - 3 * 3600_000)
     return ar.toISOString().replace('Z', '-03:00')
   }
 
+  // uniqueId: seconds + random suffix to avoid collisions across cold starts
+  const uniqueId = `${Math.floor(Date.now() / 1000)}${Math.floor(Math.random() * 1000)}`
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
   <header>
-    <uniqueId>${Math.floor(Date.now() / 1000)}</uniqueId>
-    <generationTime>${fmt(from)}</generationTime>
-    <expirationTime>${fmt(to)}</expirationTime>
+    <uniqueId>${uniqueId}</uniqueId>
+    <generationTime>${fmtTs(from)}</generationTime>
+    <expirationTime>${fmtTs(to)}</expirationTime>
   </header>
   <service>${SERVICE}</service>
 </loginTicketRequest>`
@@ -79,9 +153,9 @@ function signTRA(tra: string, certPem: string, keyPem: string): string {
     certificate: cert,
     digestAlgorithm: forge.pki.oids.sha256,
     authenticatedAttributes: [
-      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
+      { type: forge.pki.oids.contentType,   value: forge.pki.oids.data },
       { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: new Date() },
+      { type: forge.pki.oids.signingTime,   value: new Date() },
     ],
   })
   p7.sign()
@@ -90,13 +164,9 @@ function signTRA(tra: string, certPem: string, keyPem: string): string {
   return forge.util.encode64(der)
 }
 
-async function getToken(certPem: string, keyPem: string): Promise<{ token: string; sign: string }> {
-  if (cachedToken && cachedToken.expiry > new Date(Date.now() + 5 * 60_000)) {
-    return { token: cachedToken.token, sign: cachedToken.sign }
-  }
-
-  const tra = buildTRA()
-  const cms = signTRA(tra, certPem, keyPem)
+async function fetchFreshToken(certPem: string, keyPem: string): Promise<{ token: string; sign: string }> {
+  const tra     = buildTRA()
+  const cms     = signTRA(tra, certPem, keyPem)
 
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -113,6 +183,7 @@ async function getToken(certPem: string, keyPem: string): Promise<{ token: strin
     method: 'POST',
     headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '""' },
     body: soapBody,
+    signal: AbortSignal.timeout(15_000),
   })
 
   const xml = await res.text()
@@ -122,15 +193,25 @@ async function getToken(certPem: string, keyPem: string): Promise<{ token: strin
   const expiryMatch = xml.match(/<expirationTime>([\s\S]*?)<\/expirationTime>/)
 
   if (!tokenMatch || !signMatch) {
-    throw new Error(`WSAA error: ${xml.substring(0, 300)}`)
+    // Log the WSAA error for debugging
+    const faultMsg = xml.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1]?.trim() ?? ''
+    throw new Error(`WSAA error${faultMsg ? `: ${faultMsg}` : ''} — ${xml.substring(0, 300)}`)
   }
 
   const token  = tokenMatch[1].trim()
   const sign   = signMatch[1].trim()
-  const expiry = expiryMatch ? new Date(expiryMatch[1].trim()) : new Date(Date.now() + 11 * 3600_000)
+  const expiry = expiryMatch
+    ? new Date(expiryMatch[1].trim())
+    : new Date(Date.now() + 11 * 3600_000)
 
-  cachedToken = { token, sign, expiry }
+  await saveCachedToken(token, sign, expiry)
   return { token, sign }
+}
+
+async function getToken(certPem: string, keyPem: string): Promise<{ token: string; sign: string }> {
+  const cached = await readCachedToken()
+  if (cached) return cached
+  return fetchFreshToken(certPem, keyPem)
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -142,20 +223,17 @@ export const handler: Handler = async (event) => {
     'Content-Type': 'application/json',
   }
 
-  // Preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors, body: '' }
   }
 
-  // ── Auth: verificar JWT de Supabase ──────────────────────────────────────
+  // ── Auth ─────────────────────────────────────────────────────────────────
   const authHeader = event.headers.authorization ?? event.headers.Authorization ?? ''
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-
-  if (!token) {
+  const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
+  if (!bearerToken) {
     return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Unauthorized' }) }
   }
-
-  const isValid = await verifySupabaseToken(token)
+  const isValid = await verifySupabaseToken(bearerToken)
   if (!isValid) {
     return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Unauthorized' }) }
   }
@@ -175,7 +253,10 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 503,
       headers: cors,
-      body: JSON.stringify({ error: 'AFIP_NOT_CONFIGURED', message: 'Variables AFIP_CERT / AFIP_KEY / AFIP_CUIT no configuradas en el servidor' }),
+      body: JSON.stringify({
+        error: 'AFIP_NOT_CONFIGURED',
+        message: 'Variables AFIP_CERT / AFIP_KEY / AFIP_CUIT no configuradas en el servidor',
+      }),
     }
   }
 
@@ -188,11 +269,26 @@ export const handler: Handler = async (event) => {
         Authorization: `WSAA token="${wsaaToken}",sign="${sign}"`,
         Accept: 'application/json',
       },
+      signal: AbortSignal.timeout(15_000),
     })
 
     const text = await res.text()
 
     if (!res.ok) {
+      // If token rejected (401), clear cache and retry once with fresh token
+      if (res.status === 401) {
+        memCache = null
+        const { token: t2, sign: s2 } = await fetchFreshToken(certPem, keyPem)
+        const res2 = await fetch(`${PADRON_URL}/${cuit}`, {
+          headers: { Authorization: `WSAA token="${t2}",sign="${s2}"`, Accept: 'application/json' },
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (!res2.ok) {
+          return { statusCode: res2.status >= 500 ? 502 : res2.status, headers: cors,
+            body: JSON.stringify({ error: 'PADRON_ERROR', status: res2.status, message: (await res2.text()).substring(0, 200) }) }
+        }
+        return { statusCode: 200, headers: cors, body: await res2.text() }
+      }
       return {
         statusCode: res.status >= 500 ? 502 : res.status,
         headers: cors,
@@ -215,7 +311,6 @@ export const handler: Handler = async (event) => {
 
   } catch (err) {
     const msg = (err as Error).message ?? String(err)
-    // No exponer stack trace en producción
     return {
       statusCode: 500,
       headers: cors,

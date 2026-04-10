@@ -1,11 +1,24 @@
 -- ============================================================
--- AgroCotizar — Supabase Schema v2
+-- Cotizagro — Supabase Schema v2
 -- Modelo simplificado: cada usuario tiene sus propios datos.
 -- RLS usa auth.uid() directamente (sin multi-tenant complejo).
 -- Ejecutar en: Supabase Dashboard → SQL Editor
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ─── AFIP token cache (server-side only, no RLS) ──────────────
+-- Persiste el token WSAA entre cold-starts de Netlify Functions.
+-- Solo accedido con SUPABASE_SERVICE_ROLE_KEY desde el servidor.
+CREATE TABLE IF NOT EXISTS afip_token_cache (
+  service     text PRIMARY KEY,       -- 'ws_sr_padron_a5'
+  token       text NOT NULL,
+  sign        text NOT NULL,
+  expiry_at   timestamptz NOT NULL,
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+-- Sin RLS: la tabla solo la lee/escribe el server via service role key.
+ALTER TABLE afip_token_cache DISABLE ROW LEVEL SECURITY;
 
 -- ─── Profiles (configuración del vendedor/empresa) ────────────
 -- Se crea automáticamente al registrarse (trigger abajo).

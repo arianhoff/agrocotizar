@@ -124,7 +124,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
             <Tractor size={28} className="text-[#22C55E]" />
           </div>
           <div className="text-[28px] font-bold text-white tracking-tight leading-none">
-            Agro<span className="text-[#22C55E]">Cotizar</span>
+            Cotiz<span className="text-[#22C55E]">agro</span>
           </div>
           <div className="text-[11px] text-white/30 tracking-widest uppercase mt-2 font-mono">
             Sistema de cotización agrícola

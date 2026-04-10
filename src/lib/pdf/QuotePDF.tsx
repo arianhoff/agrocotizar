@@ -241,7 +241,7 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         {/* ── Header ── */}
         <View style={S.header}>
           <View>
-            <Text style={S.logoText}>Cotiza<Text style={S.logoAccent}>gro</Text></Text>
+            <Text style={S.logoText}>Cotiz<Text style={S.logoAccent}>agro</Text></Text>
             <Text style={S.logoSub}>MAQUINARIA AGRÍCOLA · ARGENTINA</Text>
           </View>
           <View style={S.headerRight}>
