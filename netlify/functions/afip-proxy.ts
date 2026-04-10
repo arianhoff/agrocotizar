@@ -188,12 +188,40 @@ async function fetchFreshToken(certPem: string, keyPem: string): Promise<{ token
 
   const xml = await res.text()
 
-  const tokenMatch  = xml.match(/<token>([\s\S]*?)<\/token>/)
-  const signMatch   = xml.match(/<sign>([\s\S]*?)<\/sign>/)
-  const expiryMatch = xml.match(/<expirationTime>([\s\S]*?)<\/expirationTime>/)
+  // AFIP wraps the ticket XML inside <loginCmsReturn> as HTML-entity-encoded text
+  const innerRaw = xml.match(/<loginCmsReturn[^>]*>([\s\S]*?)<\/loginCmsReturn>/)?.[1] ?? xml
+  const inner = innerRaw
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g,  '&')
+    .replace(/&#xD;/g,  '')
+
+  // alreadyAuthenticated: AFIP has an active TA — try Supabase cache even if expired
+  if (xml.includes('alreadyAuthenticated') || inner.includes('alreadyAuthenticated')) {
+    const sb = getSupabase()
+    if (sb) {
+      try {
+        const { data } = await sb
+          .from('afip_token_cache')
+          .select('token, sign, expiry_at')
+          .eq('service', SERVICE)
+          .single<{ token: string; sign: string; expiry_at: string }>()
+        if (data) {
+          const expiry = new Date(data.expiry_at)
+          memCache = { token: data.token, sign: data.sign, expiry }
+          return { token: data.token, sign: data.sign }
+        }
+      } catch { /* no row */ }
+    }
+    throw new Error('WSAA alreadyAuthenticated — sin token en caché de Supabase')
+  }
+
+  const tokenMatch  = inner.match(/<token>([\s\S]*?)<\/token>/)
+  const signMatch   = inner.match(/<sign>([\s\S]*?)<\/sign>/)
+  const expiryMatch = inner.match(/<expirationTime>([\s\S]*?)<\/expirationTime>/)
 
   if (!tokenMatch || !signMatch) {
-    // Log the WSAA error for debugging
     const faultMsg = xml.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1]?.trim() ?? ''
     throw new Error(`WSAA error${faultMsg ? `: ${faultMsg}` : ''} — ${xml.substring(0, 300)}`)
   }
