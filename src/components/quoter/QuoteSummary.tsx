@@ -227,7 +227,12 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
               ) : uploadResult && !uploadResult.ok && uploadResult.reason === 'auth' ? (
                 <p>Sesión expirada. Cerrá sesión y volvé a ingresar.</p>
               ) : (
-                <p>No se pudo generar el enlace. Descargá el PDF y adjuntalo manualmente.</p>
+                <>
+                  <p>No se pudo generar el enlace. Descargá el PDF y adjuntalo manualmente.</p>
+                  {uploadResult && !uploadResult.ok && (
+                    <p className="font-mono text-[10px] opacity-70 break-all">{uploadResult.detail}</p>
+                  )}
+                </>
               )}
             </div>
           </div>
