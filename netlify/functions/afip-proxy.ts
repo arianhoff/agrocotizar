@@ -37,7 +37,7 @@ const PADRON_URL = isProd
   ? 'https://aws.afip.gov.ar/sr-padron/v2/persona'
   : 'https://awshomo.afip.gov.ar/sr-padron/v2/persona'
 
-const SERVICE = 'ws_sr_padron_a4'
+const SERVICE = 'ws_sr_padron_a13'
 
 // ─── In-memory cache (respaldo rápido entre hot invocations) ──────────────────
 
