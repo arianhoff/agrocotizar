@@ -79,9 +79,13 @@ async function fetchBCRA(cuit: string): Promise<
 > {
   const clean = cuit.replace(/-/g, '')
   try {
-    const res = await fetch(`/api/deudas?cuit=${clean}`, { headers: { Accept: 'application/json' } })
+    const res = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/${clean}`, {
+      headers: { Accept: 'application/json' },
+    })
     if (res.status === 404) {
-      const resHist = await fetch(`/api/deudas?cuit=${clean}&historicas=true`, { headers: { Accept: 'application/json' } }).catch(() => null)
+      const resHist = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/Historicas/${clean}`, {
+        headers: { Accept: 'application/json' },
+      }).catch(() => null)
       let denominacion = ''
       if (resHist?.ok) {
         const d = await resHist.json().catch(() => null)
@@ -89,15 +93,10 @@ async function fetchBCRA(cuit: string): Promise<
       }
       return { status: 'sin_deudas', denominacion }
     }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      console.warn('[BCRA raw]', res.status, JSON.stringify(body).substring(0, 300))
-      return { status: 'error', message: `BCRA respondió ${res.status}` }
-    }
+    if (!res.ok) return { status: 'error', message: `BCRA respondió ${res.status}` }
     const json = await res.json()
     return { status: 'ok', data: json.results as DeudorResult }
-  } catch (e) {
-    console.warn('[BCRA error]', e)
+  } catch {
     return { status: 'error', message: 'No se pudo conectar con el BCRA' }
   }
 }

@@ -130,12 +130,11 @@ async function checkBCRA(cuit: string): Promise<BCRAState> {
   if (clean.length !== 11) return { status: 'error', message: 'CUIT inválido (debe tener 11 dígitos)' }
 
   try {
-    const res = await fetch(`/api/deudas?cuit=${clean}`, {
+    const res = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/${clean}`, {
       headers: { Accept: 'application/json' },
     })
     if (res.status === 404) {
-      // 404 = no deudas — try to get denominacion from deuda historica
-      const resHist = await fetch(`/api/deudas?cuit=${clean}&historicas=true`, {
+      const resHist = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/Historicas/${clean}`, {
         headers: { Accept: 'application/json' },
       }).catch(() => null)
       let denominacion = ''
