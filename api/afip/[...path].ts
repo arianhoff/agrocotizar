@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { IncomingMessage, ServerResponse } from 'http'
 import * as forge from 'node-forge'
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_cors'
@@ -101,7 +101,7 @@ function signTRA(tra: string, certPem: string, keyPem: string): string {
     authenticatedAttributes: [
       { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
       { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: new Date() },
+      { type: forge.pki.oids.signingTime, value: new Date() as unknown as string },
     ],
   })
   p7.sign()
@@ -168,22 +168,37 @@ async function getToken(certPem: string, keyPem: string) {
   return (await readCachedToken()) ?? fetchFreshToken(certPem, keyPem)
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const origin = (req.headers.origin as string) ?? ''
-  const cors = { ...getCorsHeaders(origin), 'Content-Type': 'application/json' }
+type Req = IncomingMessage & { url?: string; query?: Record<string, string> }
+type Res = ServerResponse
 
-  if (req.method === 'OPTIONS') return res.status(204).set(cors).end()
+function send(res: Res, status: number, headers: Record<string, string>, body: unknown) {
+  const json = JSON.stringify(body)
+  Object.entries({ ...headers, 'Content-Type': 'application/json' })
+    .forEach(([k, v]) => res.setHeader(k, v))
+  res.statusCode = status
+  res.end(json)
+}
+
+export default async function handler(req: Req, res: Res) {
+  const origin = (req.headers.origin as string) ?? ''
+  const cors = getCorsHeaders(origin)
+
+  if (req.method === 'OPTIONS') {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.statusCode = 204
+    return res.end()
+  }
 
   const authHeader = (req.headers.authorization as string) ?? ''
   const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
   if (!bearerToken || !(await verifySupabaseToken(bearerToken))) {
-    return res.status(401).set(cors).json({ error: 'Unauthorized' })
+    return send(res, 401, cors, { error: 'Unauthorized' })
   }
 
   const url = req.url ?? ''
   const cuit = url.split('/').pop()?.split('?')[0]?.replace(/\D/g, '') ?? ''
   if (!/^\d{11}$/.test(cuit)) {
-    return res.status(400).set(cors).json({ error: 'CUIT inválido', cuit })
+    return send(res, 400, cors, { error: 'CUIT inválido', cuit })
   }
 
   const certPem  = (process.env.AFIP_CERT ?? '').replace(/\\n/g, '\n')
@@ -191,7 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const afipCuit = process.env.AFIP_CUIT  ?? ''
 
   if (!certPem || !keyPem || !afipCuit) {
-    return res.status(503).set(cors).json({
+    return send(res, 503, cors, {
       error: 'AFIP_NOT_CONFIGURED',
       message: 'Variables AFIP_CERT / AFIP_KEY / AFIP_CUIT no configuradas',
     })
@@ -215,23 +230,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           signal: AbortSignal.timeout(15_000),
         })
         const text2 = await res2.text()
-        if (!res2.ok) return res.status(res2.status >= 500 ? 502 : res2.status).set(cors)
-          .json({ error: 'PADRON_ERROR', status: res2.status, message: text2.substring(0, 200) })
-        try { return res.status(200).set(cors).json(JSON.parse(text2)) } catch {
-          return res.status(502).set(cors).json({ error: 'PADRON_PARSE_ERROR', message: text2.substring(0, 200) })
+        if (!res2.ok) return send(res, res2.status >= 500 ? 502 : res2.status, cors,
+          { error: 'PADRON_ERROR', status: res2.status, message: text2.substring(0, 200) })
+        try { return send(res, 200, cors, JSON.parse(text2)) } catch {
+          return send(res, 502, cors, { error: 'PADRON_PARSE_ERROR', message: text2.substring(0, 200) })
         }
       }
-      return res.status(padronRes.status >= 500 ? 502 : padronRes.status).set(cors)
-        .json({ error: 'PADRON_ERROR', status: padronRes.status, message: text.substring(0, 200) })
+      return send(res, padronRes.status >= 500 ? 502 : padronRes.status, cors,
+        { error: 'PADRON_ERROR', status: padronRes.status, message: text.substring(0, 200) })
     }
 
     try {
-      return res.status(200).set(cors).json(JSON.parse(text))
+      return send(res, 200, cors, JSON.parse(text))
     } catch {
-      return res.status(502).set(cors).json({ error: 'PADRON_PARSE_ERROR', message: text.substring(0, 200) })
+      return send(res, 502, cors, { error: 'PADRON_PARSE_ERROR', message: text.substring(0, 200) })
     }
   } catch (err) {
     const msg = (err as Error).message ?? String(err)
-    return res.status(500).set(cors).json({ error: 'WSAA_ERROR', message: msg })
+    return send(res, 500, cors, { error: 'WSAA_ERROR', message: msg })
   }
 }

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { IncomingMessage, ServerResponse } from 'http'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { getCorsHeaders } from '../_cors'
 
@@ -15,12 +15,20 @@ const agent = new Agent({
   },
 })
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const origin = (req.headers.origin as string) ?? ''
   const cors = getCorsHeaders(origin)
 
-  if (req.method === 'OPTIONS') return res.status(204).set(cors).end()
-  if (req.method !== 'GET') return res.status(405).set(cors).json({ error: 'Method not allowed' })
+  if (req.method === 'OPTIONS') {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.statusCode = 204
+    return res.end()
+  }
+  if (req.method !== 'GET') {
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = 405
+    return res.end(JSON.stringify({ error: 'Method not allowed' }))
+  }
 
   const path = (req.url ?? '').replace(/^\/api\/bcra/, '') || '/'
   const url = `https://api.bcra.gob.ar${path}`
@@ -42,10 +50,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dispatcher: agent,
     })
     const body = await upstream.text()
-    res.status(upstream.status)
-      .set({ ...cors, 'Content-Type': upstream.headers.get('content-type') ?? 'application/json' })
-      .send(body)
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json')
+    res.statusCode = upstream.status
+    res.end(body)
   } catch (err) {
-    res.status(500).set(cors).json({ error: `BCRA proxy error: ${(err as Error).message}` })
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = 500
+    res.end(JSON.stringify({ error: `BCRA proxy error: ${(err as Error).message}` }))
   }
 }

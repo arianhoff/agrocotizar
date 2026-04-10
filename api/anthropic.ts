@@ -1,15 +1,29 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { IncomingMessage, ServerResponse } from 'http'
 import { getCorsHeaders } from './_cors'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const origin = (req.headers.origin as string) ?? ''
   const cors = getCorsHeaders(origin)
 
-  if (req.method === 'OPTIONS') return res.status(204).set(cors).end()
-  if (req.method !== 'POST') return res.status(405).set(cors).json({ error: 'Method not allowed' })
+  if (req.method === 'OPTIONS') {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.statusCode = 204
+    return res.end()
+  }
+  if (req.method !== 'POST') {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = 405
+    return res.end(JSON.stringify({ error: 'Method not allowed' }))
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return res.status(500).set(cors).json({ error: 'ANTHROPIC_API_KEY no configurada' })
+  if (!apiKey) {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = 500
+    return res.end(JSON.stringify({ error: 'ANTHROPIC_API_KEY no configurada' }))
+  }
 
   const chunks: Buffer[] = []
   req.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -28,12 +42,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body,
     })
 
-    const contentType = upstream.headers.get('content-type') ?? 'application/json'
-    res.status(upstream.status).set({
-      ...cors,
-      'Content-Type': contentType,
-      ...(isStream ? { 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' } : {}),
-    })
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json')
+    if (isStream) {
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('X-Accel-Buffering', 'no')
+    }
+    res.statusCode = upstream.status
 
     if (upstream.body) {
       const reader = upstream.body.getReader()
