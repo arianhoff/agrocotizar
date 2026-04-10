@@ -89,10 +89,15 @@ async function fetchBCRA(cuit: string): Promise<
       }
       return { status: 'sin_deudas', denominacion }
     }
-    if (!res.ok) return { status: 'error', message: `BCRA respondió ${res.status}` }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      console.warn('[BCRA raw]', res.status, JSON.stringify(body).substring(0, 300))
+      return { status: 'error', message: `BCRA respondió ${res.status}` }
+    }
     const json = await res.json()
     return { status: 'ok', data: json.results as DeudorResult }
-  } catch {
+  } catch (e) {
+    console.warn('[BCRA error]', e)
     return { status: 'error', message: 'No se pudo conectar con el BCRA' }
   }
 }

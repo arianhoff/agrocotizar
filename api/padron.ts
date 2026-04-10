@@ -310,35 +310,46 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     }
 
     const personaXml = xml.match(/<personaReturn>([\s\S]*?)<\/personaReturn>/)?.[1] ?? xml
+    const p = (src: string, tag: string) => src.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() ?? ''
 
-    // Build a normalized object similar to what A5 returns so the frontend works without changes
-    const extractFrom = (src: string, tag: string) => src.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() ?? ''
+    // A13 wraps data inside <persona>
+    const innerXml = personaXml.match(/<persona>([\s\S]*?)<\/persona>/)?.[1] ?? personaXml
 
-    const domicilioFiscalXml = personaXml.match(/<domicilioFiscal>([\s\S]*?)<\/domicilioFiscal>/)?.[1] ?? ''
-    const actividadesXml = [...personaXml.matchAll(/<actividadesEconomicas>([\s\S]*?)<\/actividadesEconomicas>/g)]
+    // Domicilio tag is <domicilio> in A13 (not <domicilioFiscal>)
+    const domXml = innerXml.match(/<domicilio>([\s\S]*?)<\/domicilio>/)?.[1] ?? ''
+
+    // Full name: apellido + nombre for FISICA, denominacion for JURIDICA
+    const apellido = p(innerXml, 'apellido')
+    const nombre   = p(innerXml, 'nombre')
+    const denominacion = p(innerXml, 'denominacion') || (apellido ? `${apellido}${nombre ? ', ' + nombre : ''}` : nombre)
+
+    // IVA: <descripcionIVA> or inside <impuesto> blocks
+    const ivaDesc = p(innerXml, 'descripcionIVA') ||
+      [...innerXml.matchAll(/<impuesto>([\s\S]*?)<\/impuesto>/g)]
+        .map(m => p(m[1], 'descripcionImpuesto'))
+        .find(d => /iva|ganancias/i.test(d)) ?? ''
+
+    // Actividades: <actividadesEconomicas> blocks
+    const actividadesXml = [...innerXml.matchAll(/<actividadesEconomicas>([\s\S]*?)<\/actividadesEconomicas>/g)]
 
     const data = {
-      idPersona:   extractFrom(personaXml, 'idPersona'),
-      nombre:      extractFrom(personaXml, 'nombre'),
-      denominacion: extractFrom(personaXml, 'denominacion') || extractFrom(personaXml, 'nombre'),
-      tipoPersona: extractFrom(personaXml, 'tipoPersona'),
-      tipoClave:   extractFrom(personaXml, 'tipoClave'),
-      estadoClave: extractFrom(personaXml, 'estadoClave'),
-      categoriasIVA: (() => {
-        const desc = extractFrom(personaXml, 'descripcionIVA') || extractFrom(personaXml, 'categoriasIVA')
-        return desc ? [{ descripcion: desc }] : []
-      })(),
-      domicilioFiscal: domicilioFiscalXml ? {
-        direccion:            extractFrom(domicilioFiscalXml, 'direccion'),
-        localidad:            extractFrom(domicilioFiscalXml, 'localidad') || extractFrom(domicilioFiscalXml, 'descripcionLocalidad'),
-        descripcionProvincia: extractFrom(domicilioFiscalXml, 'descripcionProvincia'),
-        codPostal:            extractFrom(domicilioFiscalXml, 'codPostal'),
+      idPersona:    p(innerXml, 'idPersona') || p(personaXml, 'idPersona'),
+      nombre:       denominacion,
+      denominacion,
+      tipoPersona:  p(innerXml, 'tipoPersona') || p(personaXml, 'tipoPersona'),
+      tipoClave:    p(innerXml, 'tipoClave')    || p(personaXml, 'tipoClave'),
+      estadoClave:  p(innerXml, 'estadoClave')  || p(personaXml, 'estadoClave'),
+      categoriasIVA: ivaDesc ? [{ descripcion: ivaDesc }] : [],
+      domicilioFiscal: domXml ? {
+        direccion:            p(domXml, 'calle') + (p(domXml, 'numero') ? ' ' + p(domXml, 'numero') : ''),
+        localidad:            p(domXml, 'descripcionLocalidad') || p(domXml, 'localidad'),
+        descripcionProvincia: p(domXml, 'descripcionProvincia'),
+        codPostal:            p(domXml, 'codigoPostal') || p(domXml, 'codPostal'),
       } : undefined,
       actividades: actividadesXml.map(a => ({
-        orden: parseInt(extractFrom(a, 'orden') || '0'),
-        descripcionActividad: extractFrom(a, 'descripcionActividad') || extractFrom(a, 'actividad'),
+        orden: parseInt(p(a[1], 'orden') || '0'),
+        descripcionActividad: p(a[1], 'descripcionActividad') || p(a[1], 'actividad'),
       })),
-      _rawXml: xml.substring(0, 500),
     }
 
     return send(res, 200, cors, { datosGenerales: data })
