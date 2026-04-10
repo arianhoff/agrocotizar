@@ -1,6 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { getCorsHeaders } from './_cors'
 
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()))
+    req.on('error', reject)
+  })
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const origin = (req.headers.origin as string) ?? ''
   const cors = getCorsHeaders(origin)
@@ -10,6 +19,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.statusCode = 204
     return res.end()
   }
+
   if (req.method !== 'POST') {
     Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
     res.setHeader('Content-Type', 'application/json')
@@ -25,10 +35,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return res.end(JSON.stringify({ error: 'ANTHROPIC_API_KEY no configurada' }))
   }
 
-  const chunks: Buffer[] = []
-  req.on('data', (chunk: Buffer) => chunks.push(chunk))
-  req.on('end', async () => {
-    const body = Buffer.concat(chunks).toString()
+  try {
+    const body = await readBody(req)
     let isStream = false
     try { isStream = !!JSON.parse(body).stream } catch { /* ignore */ }
 
@@ -52,15 +60,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     if (upstream.body) {
       const reader = upstream.body.getReader()
-      const pump = async () => {
+      const pump = async (): Promise<void> => {
         const { done, value } = await reader.read()
         if (done) { res.end(); return }
         res.write(value)
-        pump()
+        return pump()
       }
-      pump()
+      await pump()
     } else {
       res.end(await upstream.text())
     }
-  })
+  } catch (err) {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = 500
+    res.end(JSON.stringify({ error: (err as Error).message ?? String(err) }))
+  }
 }
