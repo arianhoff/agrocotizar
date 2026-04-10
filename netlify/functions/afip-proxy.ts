@@ -127,8 +127,8 @@ function buildTRA(): string {
     return ar.toISOString().replace('Z', '-03:00')
   }
 
-  // uniqueId: seconds + random suffix to avoid collisions across cold starts
-  const uniqueId = `${Math.floor(Date.now() / 1000)}${Math.floor(Math.random() * 1000)}`
+  // uniqueId: xs:unsignedInt (max 4294967295) — usamos milisegundos mod para evitar colisiones
+  const uniqueId = Date.now() % 999_999_999
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
