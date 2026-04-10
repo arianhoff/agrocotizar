@@ -5,6 +5,7 @@ import type { Quote, QuoteTotals } from '@/types'
 import { computeTotals } from '@/store/quoteStore'
 import { fmt, fmtDate } from '@/utils'
 import { GEA_PAYMENT_CONDITIONS } from '@/data/gea'
+import { supabase } from '@/lib/supabase/client'
 
 // ─── Payment comparison helper ────────────────────────────────
 
@@ -462,6 +463,35 @@ export async function shareQuotePDF(
     const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     if (win) win.location.href = mailto
     else window.open(mailto, '_blank')
+  }
+}
+
+/**
+ * Sube el PDF a Supabase Storage y devuelve una URL firmada válida 30 días.
+ * Retorna null si el bucket no existe o hay un error (el llamador debe manejar el fallback).
+ */
+export async function uploadQuotePDF(quote: Quote): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user?.id) return null
+
+    const file = await buildQuotePDFFile(quote)
+    const path = `${session.user.id}/${quote.quote_number}.pdf`
+
+    const { error: uploadError } = await supabase.storage
+      .from('quote-pdfs')
+      .upload(path, file, { contentType: 'application/pdf', upsert: true })
+
+    if (uploadError) return null
+
+    const { data: signed, error: signError } = await supabase.storage
+      .from('quote-pdfs')
+      .createSignedUrl(path, 60 * 60 * 24 * 30) // 30 días
+
+    if (signError || !signed?.signedUrl) return null
+    return signed.signedUrl
+  } catch {
+    return null
   }
 }
 

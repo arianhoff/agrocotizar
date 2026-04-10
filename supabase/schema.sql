@@ -200,6 +200,23 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
+-- ─── Storage bucket: PDFs de cotizaciones ────────────────────
+-- Ejecutar en Supabase Dashboard → Storage → New bucket:
+--   Name: quote-pdfs | Public: OFF
+-- Luego ejecutar estas políticas:
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('quote-pdfs', 'quote-pdfs', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Solo el dueño puede subir/borrar sus PDFs
+CREATE POLICY "quote_pdfs_insert" ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'quote-pdfs' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "quote_pdfs_delete" ON storage.objects FOR DELETE
+  USING (bucket_id = 'quote-pdfs' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Las URLs firmadas (signed URLs) permiten descarga sin autenticación (no requiere policy SELECT).
+
 -- ─── Seed: lista GEA global (visible para todos) ─────────────
 INSERT INTO price_lists (id, user_id, brand, name, currency, valid_from, iva_included, iva_rate)
 VALUES ('00000000-0000-0000-0000-000000000001', NULL, 'GEA', 'Lista Enero 2026', 'USD', '2026-01-01', true, 10.5)
