@@ -60,7 +60,7 @@ function speak(text: string, onEnd?: () => void) {
 async function lookupCuit(cuit: string): Promise<{ nombre: string } | null> {
   try {
     const { authFetch } = await import('@/lib/api')
-    const res = await authFetch(`/api/afip/sr-padron/v2/persona/${cuit}`)
+    const res = await authFetch(`/api/padron?cuit=${cuit}`)
     const data = await res.json()
     if (data.error) return null
     const nombre = data.nombre ?? data.razonSocial ?? data.apellido ?? null

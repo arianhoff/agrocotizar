@@ -79,9 +79,9 @@ async function fetchBCRA(cuit: string): Promise<
 > {
   const clean = cuit.replace(/-/g, '')
   try {
-    const res = await fetch(`/api/bcra/centraldedeudores/v1.0/Deudas/${clean}`, { headers: { Accept: 'application/json' } })
+    const res = await fetch(`/api/deudas?cuit=${clean}`, { headers: { Accept: 'application/json' } })
     if (res.status === 404) {
-      const resHist = await fetch(`/api/bcra/centraldedeudores/v1.0/Deudas/Historicas/${clean}`, { headers: { Accept: 'application/json' } }).catch(() => null)
+      const resHist = await fetch(`/api/deudas?cuit=${clean}&historicas=true`, { headers: { Accept: 'application/json' } }).catch(() => null)
       let denominacion = ''
       if (resHist?.ok) {
         const d = await resHist.json().catch(() => null)
@@ -105,7 +105,7 @@ async function fetchAFIP(cuit: string): Promise<AFIPResult> {
   const clean = cuit.replace(/-/g, '')
   try {
     const { authFetch } = await import('@/lib/api')
-    const res = await authFetch(`/api/afip/sr-padron/v2/persona/${clean}`, { headers: { Accept: 'application/json' } })
+    const res = await authFetch(`/api/padron?cuit=${clean}`, { headers: { Accept: 'application/json' } })
     const json = await res.json()
     console.log('[AFIP raw]', JSON.stringify(json).substring(0, 800))
     if (json.error) {
