@@ -532,11 +532,10 @@ export function CUITPage() {
             {/* Sin datos AFIP / error ARCA */}
             {result.afipError && (
               <Card>
-                <div className="flex items-start gap-3">
-                  <AlertCircle size={16} className="text-[#EF4444] shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-[12px] font-semibold text-[#991B1B]">No se pudieron obtener datos de ARCA</div>
-                    <div className="text-[11px] text-[#64748B] mt-0.5 font-mono break-all">{result.afipError}</div>
+                <div className="flex items-center gap-3">
+                  <AlertCircle size={16} className="text-[#94A3B8] shrink-0" />
+                  <div className="text-[12px] text-[#64748B]">
+                    No se pudieron obtener datos de ARCA. El servicio puede estar temporalmente no disponible.
                   </div>
                 </div>
               </Card>
