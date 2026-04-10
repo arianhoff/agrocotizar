@@ -68,9 +68,12 @@ const initialState = {
 
 // ─── Supabase helpers (fire and forget) ───────────────────────
 
-function syncPriceList(pl: PriceList) {
+async function syncPriceList(pl: PriceList) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
   supabase.from('price_lists').upsert({
     id: pl.id,
+    user_id: user.id,       // required for RLS policies (INSERT / UPDATE)
     brand: pl.brand,
     name: pl.name,
     currency: pl.currency,

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage, CreditCard } from 'lucide-react'
+import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage, CreditCard, Upload } from 'lucide-react'
 import { useCatalogStore, type CsvRow } from '@/store/catalogStore'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card, Button, Badge, FieldGroup, Label, Input, Select } from '@/components/ui'
@@ -114,6 +114,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
   // CSV tab
   const [csvText, setCsvText] = useState('')
   const [preview, setPreview] = useState<CsvRow[]>([])
+  const csvFileRef = useRef<HTMLInputElement>(null)
 
   // ── General ──────────────────────────────────────────────────────────────────
   function handleGeneralApply() {
@@ -155,6 +156,20 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
     if (preview.length === 0) return
     importCSV(priceListId, preview)
     onClose()
+  }
+
+  function handleCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const text = (ev.target?.result as string) ?? ''
+      setCsvText(text)
+      const parsed = parseCSV(text)
+      setPreview(parsed)
+    }
+    reader.readAsText(file, 'UTF-8')
   }
 
   const TABS = [
@@ -260,23 +275,46 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
           {/* ── CSV ── */}
           {tab === 'csv' && (
             <div>
-              <p className="text-[12px] text-[#64748B] mb-2">
-                Pegá el contenido del CSV. Columnas: <span className="text-[#22C55E] font-medium">código, nombre, categoría, precio, moneda</span>
+              <p className="text-[12px] text-[#64748B] mb-3">
+                Columnas: <span className="text-[#22C55E] font-medium">código, nombre, categoría, precio, moneda</span><br />
+                <span className="text-[#94A3B8]">Separadores: coma, punto y coma o tab · Primera fila = encabezado · Reemplaza todos los productos actuales</span>
               </p>
-              <p className="text-[11px] text-[#94A3B8] mb-3">
-                Separadores: coma, punto y coma o tab. Primera fila = encabezado.<br />
-                Reemplaza todos los productos actuales de la lista.
-              </p>
+
+              {/* File upload button */}
+              <input
+                ref={csvFileRef}
+                type="file"
+                accept=".csv,.txt"
+                className="hidden"
+                onChange={handleCSVFile}
+              />
+              <button
+                onClick={() => csvFileRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 mb-3 rounded-lg border-2 border-dashed border-[#E2E8F0] text-[#64748B] text-[12px] font-medium hover:border-[#22C55E]/50 hover:text-[#22C55E] hover:bg-[#F0FDF4]/50 transition-colors cursor-pointer"
+              >
+                <Upload size={14} />
+                Cargar archivo CSV (cualquier tamaño)
+              </button>
+
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex-1 h-px bg-[#E2E8F0]" />
+                <span className="text-[10px] text-[#94A3B8] uppercase tracking-widest">o pegá el texto</span>
+                <div className="flex-1 h-px bg-[#E2E8F0]" />
+              </div>
+
               <textarea
                 value={csvText}
                 onChange={e => { setCsvText(e.target.value); setPreview([]) }}
-                rows={6}
+                rows={5}
                 placeholder={'codigo,nombre,categoria,precio,moneda\nMGV110F,Mixer vertical 110F,Mixer / Unifeed,29000,USD'}
                 className="w-full bg-white border border-[#E2E8F0] rounded-lg text-[#0F172A] text-[12px] px-3 py-2 outline-none focus:border-[#22C55E] placeholder:text-[#94A3B8] resize-none mb-3 font-mono"
               />
+
               {preview.length > 0 && (
                 <div className="mb-3 p-3 bg-[#F0FDF4] border border-[#22C55E]/30 rounded-lg">
-                  <div className="text-[11px] text-[#22C55E] font-medium mb-2">{preview.length} productos — vista previa:</div>
+                  <div className="text-[11px] text-[#22C55E] font-semibold mb-2">
+                    ✓ {preview.length} productos listos para importar
+                  </div>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {preview.slice(0, 5).map((r, i) => (
                       <div key={i} className="flex justify-between text-[11px] text-[#64748B] font-mono">
@@ -1089,10 +1127,11 @@ export function CatalogPage() {
     if (!file || !activeList) return
     e.target.value = ''
 
-    // Warn about large files (> 25MB unencoded ≈ ~33MB base64)
-    const MAX_SIZE_MB = 25
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      setUploadError(`El archivo es demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Máximo recomendado: ${MAX_SIZE_MB} MB. Intentá dividir el PDF en partes más pequeñas.`)
+    // Hard limit: > 50 MB no tiene sentido — la API de Anthropic no acepta más de ~32 MB
+    const HARD_LIMIT_MB = 50
+    const fileSizeMB = file.size / 1024 / 1024
+    if (fileSizeMB > HARD_LIMIT_MB) {
+      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite es ${HARD_LIMIT_MB} MB. Dividí el PDF en partes más pequeñas e importalas por separado.`)
       return
     }
 
