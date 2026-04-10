@@ -1,13 +1,15 @@
-import type { IncomingMessage, ServerResponse } from 'http'
-
+/**
+ * /api/anthropic
+ * Proxy Anthropic API
+ */
 const ALLOWED_ORIGINS = [
-  process.env.SITE_URL ?? '',
+  process.env.SITE_URL || '',
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
   'http://localhost:5173',
   'http://localhost:4173',
 ].filter(Boolean)
 
-function getCorsHeaders(origin: string): Record<string, string> {
+function getCorsHeaders(origin) {
   const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*'
   return {
     'Access-Control-Allow-Origin': allowed,
@@ -18,17 +20,17 @@ function getCorsHeaders(origin: string): Record<string, string> {
   }
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+function readBody(req) {
   return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    const chunks = []
+    req.on('data', chunk => chunks.push(chunk))
     req.on('end', () => resolve(Buffer.concat(chunks).toString()))
     req.on('error', reject)
   })
 }
 
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  const origin = (req.headers.origin as string) ?? ''
+export default async function handler(req, res) {
+  const origin = req.headers.origin || ''
   const cors = getCorsHeaders(origin)
 
   if (req.method === 'OPTIONS') {
@@ -68,7 +70,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     })
 
     Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
-    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json')
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
     if (isStream) {
       res.setHeader('Cache-Control', 'no-cache')
       res.setHeader('X-Accel-Buffering', 'no')
@@ -77,7 +79,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     if (upstream.body) {
       const reader = upstream.body.getReader()
-      const pump = async (): Promise<void> => {
+      const pump = async () => {
         const { done, value } = await reader.read()
         if (done) { res.end(); return }
         res.write(value)
@@ -91,6 +93,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
     res.setHeader('Content-Type', 'application/json')
     res.statusCode = 500
-    res.end(JSON.stringify({ error: (err as Error).message ?? String(err) }))
+    res.end(JSON.stringify({ error: err.message || String(err) }))
   }
 }

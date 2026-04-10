@@ -1,8 +1,7 @@
 /**
  * /api/padron?cuit=20392481770
- * Proxy ARCA/AFIP Padrón — autónomo, sin imports locales.
+ * Proxy ARCA/AFIP Padrón — ws_sr_padron_a13 SOAP
  */
-import type { IncomingMessage, ServerResponse } from 'http'
 import { createClient } from '@supabase/supabase-js'
 import { Agent, fetch as undiciFetch } from 'undici'
 
@@ -19,25 +18,23 @@ const tlsAgent = new Agent({
   },
 })
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _forge: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getForge(): Promise<any> {
+let _forge = null
+async function getForge() {
   if (!_forge) {
     const m = await import('node-forge')
-    _forge = (m as any).default ?? m
+    _forge = m.default ?? m
   }
   return _forge
 }
 
 const ALLOWED_ORIGINS = [
-  process.env.SITE_URL ?? '',
+  process.env.SITE_URL || '',
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
   'http://localhost:5173',
   'http://localhost:4173',
 ].filter(Boolean)
 
-function getCorsHeaders(origin: string): Record<string, string> {
+function getCorsHeaders(origin) {
   const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*'
   return {
     'Access-Control-Allow-Origin': allowed,
@@ -49,7 +46,7 @@ function getCorsHeaders(origin: string): Record<string, string> {
 }
 
 function getUrls() {
-  const isProd = (process.env.AFIP_ENV ?? '').toLowerCase().trim() === 'prod'
+  const isProd = (process.env.AFIP_ENV || '').toLowerCase().trim() === 'prod'
   return {
     wsaaUrl: isProd
       ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
@@ -57,33 +54,29 @@ function getUrls() {
     padronUrl: isProd
       ? 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13'
       : 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13',
-    isProd,
   }
 }
 
 const SERVICE = 'ws_sr_padron_a13'
-
-let memCache: { token: string; sign: string; expiry: Date } | null = null
+let memCache = null
 
 function getSupabase() {
-  const url = process.env.SUPABASE_URL ?? ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? ''
+  const url = process.env.SUPABASE_URL || ''
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
   if (!url || !key) return null
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
-async function verifySupabaseToken(bearerToken: string): Promise<boolean> {
-  const url = process.env.SUPABASE_URL ?? ''
-  const key = process.env.SUPABASE_ANON_KEY ?? ''
+async function verifySupabaseToken(bearerToken) {
+  const url = process.env.SUPABASE_URL || ''
+  const key = process.env.SUPABASE_ANON_KEY || ''
   if (!url || !key) return false
   const { data: { user }, error } = await createClient(url, key).auth.getUser(bearerToken)
   return !error && !!user
 }
 
-interface TokenRow { token: string; sign: string; expiry_at: string }
-
-async function readCachedToken(): Promise<{ token: string; sign: string } | null> {
-  if (memCache && memCache.expiry > new Date(Date.now() + 5 * 60_000)) {
+async function readCachedToken() {
+  if (memCache && memCache.expiry > new Date(Date.now() + 5 * 60000)) {
     return { token: memCache.token, sign: memCache.sign }
   }
   const sb = getSupabase()
@@ -93,18 +86,18 @@ async function readCachedToken(): Promise<{ token: string; sign: string } | null
       .from('afip_token_cache')
       .select('token, sign, expiry_at')
       .eq('service', SERVICE)
-      .single<TokenRow>()
+      .single()
     if (!data) return null
     const expiry = new Date(data.expiry_at)
-    if (expiry > new Date(Date.now() + 5 * 60_000)) {
+    if (expiry > new Date(Date.now() + 5 * 60000)) {
       memCache = { token: data.token, sign: data.sign, expiry }
       return { token: data.token, sign: data.sign }
     }
-  } catch { /* table may not exist yet */ }
+  } catch { /* table may not exist */ }
   return null
 }
 
-async function saveCachedToken(token: string, sign: string, expiry: Date): Promise<void> {
+async function saveCachedToken(token, sign, expiry) {
   memCache = { token, sign, expiry }
   const sb = getSupabase()
   if (!sb) return
@@ -117,15 +110,15 @@ async function saveCachedToken(token: string, sign: string, expiry: Date): Promi
   } catch { /* non-fatal */ }
 }
 
-function buildTRA(): string {
+function buildTRA() {
   const now  = new Date()
-  const from = new Date(now.getTime() - 60_000)
-  const to   = new Date(now.getTime() + 12 * 3600_000)
-  const fmtTs = (d: Date) => {
-    const ar = new Date(d.getTime() - 3 * 3600_000)
+  const from = new Date(now.getTime() - 60000)
+  const to   = new Date(now.getTime() + 12 * 3600000)
+  const fmtTs = (d) => {
+    const ar = new Date(d.getTime() - 3 * 3600000)
     return ar.toISOString().replace('Z', '-03:00')
   }
-  const uniqueId = Date.now() % 999_999_999
+  const uniqueId = Date.now() % 999999999
   return `<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
   <header>
@@ -137,7 +130,7 @@ function buildTRA(): string {
 </loginTicketRequest>`
 }
 
-async function signTRA(tra: string, certPem: string, keyPem: string): Promise<string> {
+async function signTRA(tra, certPem, keyPem) {
   const forge = await getForge()
   const cert       = forge.pki.certificateFromPem(certPem)
   const privateKey = forge.pki.privateKeyFromPem(keyPem)
@@ -150,7 +143,7 @@ async function signTRA(tra: string, certPem: string, keyPem: string): Promise<st
     authenticatedAttributes: [
       { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
       { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: new Date() as unknown as string },
+      { type: forge.pki.oids.signingTime, value: new Date() },
     ],
   })
   p7.sign()
@@ -158,7 +151,7 @@ async function signTRA(tra: string, certPem: string, keyPem: string): Promise<st
   return forge.util.encode64(der)
 }
 
-async function fetchFreshToken(certPem: string, keyPem: string, wsaaUrl: string): Promise<{ token: string; sign: string }> {
+async function fetchFreshToken(certPem, keyPem, wsaaUrl) {
   const cms = await signTRA(buildTRA(), certPem, keyPem)
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -173,11 +166,11 @@ async function fetchFreshToken(certPem: string, keyPem: string, wsaaUrl: string)
     method: 'POST',
     headers: { 'Content-Type': 'text/xml; charset=UTF-8', SOAPAction: '""' },
     body: soapBody,
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(15000),
   })
   const xml = await res.text()
 
-  const innerRaw = xml.match(/<loginCmsReturn[^>]*>([\s\S]*?)<\/loginCmsReturn>/)?.[1] ?? xml
+  const innerRaw = xml.match(/<loginCmsReturn[^>]*>([\s\S]*?)<\/loginCmsReturn>/)?.[1] || xml
   const inner = innerRaw
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
     .replace(/&amp;/g, '&').replace(/&#xD;/g, '')
@@ -187,7 +180,7 @@ async function fetchFreshToken(certPem: string, keyPem: string, wsaaUrl: string)
     if (sb) {
       try {
         const { data } = await sb.from('afip_token_cache').select('token, sign, expiry_at')
-          .eq('service', SERVICE).single<TokenRow>()
+          .eq('service', SERVICE).single()
         if (data) {
           memCache = { token: data.token, sign: data.sign, expiry: new Date(data.expiry_at) }
           return { token: data.token, sign: data.sign }
@@ -202,31 +195,28 @@ async function fetchFreshToken(certPem: string, keyPem: string, wsaaUrl: string)
   const expiryMatch = inner.match(/<expirationTime>([\s\S]*?)<\/expirationTime>/)
 
   if (!tokenMatch || !signMatch) {
-    const faultMsg = xml.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1]?.trim() ?? ''
+    const faultMsg = xml.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1]?.trim() || ''
     throw new Error(`WSAA error${faultMsg ? `: ${faultMsg}` : ''} — ${xml.substring(0, 300)}`)
   }
 
   const token  = tokenMatch[1].trim()
   const sign   = signMatch[1].trim()
-  const expiry = expiryMatch ? new Date(expiryMatch[1].trim()) : new Date(Date.now() + 11 * 3600_000)
+  const expiry = expiryMatch ? new Date(expiryMatch[1].trim()) : new Date(Date.now() + 11 * 3600000)
   await saveCachedToken(token, sign, expiry)
   return { token, sign }
 }
 
-function normalizePem(raw: string): string {
-  // Replace literal \n and normalize spaces/newlines
+function normalizePem(raw) {
   const s = raw.replace(/\\n/g, '\n').trim()
-  // If it already has real newlines it's fine
   if (s.includes('\n')) return s
-  // Cert was stored with spaces — reconstruct valid PEM
   const m = s.match(/-----BEGIN ([^-]+)-----([\s\S]*?)-----END ([^-]+)-----/)
   if (!m) return s
   const b64 = m[2].replace(/\s+/g, '')
-  const lines = (b64.match(/.{1,64}/g) ?? []).join('\n')
+  const lines = (b64.match(/.{1,64}/g) || []).join('\n')
   return `-----BEGIN ${m[1]}-----\n${lines}\n-----END ${m[3]}-----`
 }
 
-function send(res: ServerResponse, status: number, headers: Record<string, string>, body: unknown) {
+function send(res, status, headers, body) {
   const json = JSON.stringify(body)
   Object.entries({ ...headers, 'Content-Type': 'application/json' })
     .forEach(([k, v]) => res.setHeader(k, v))
@@ -234,8 +224,8 @@ function send(res: ServerResponse, status: number, headers: Record<string, strin
   res.end(json)
 }
 
-export default async function handler(req: IncomingMessage & { url?: string }, res: ServerResponse) {
-  const origin = (req.headers.origin as string) ?? ''
+export default async function handler(req, res) {
+  const origin = req.headers.origin || ''
   const cors = getCorsHeaders(origin)
 
   if (req.method === 'OPTIONS') {
@@ -244,33 +234,31 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
     return res.end()
   }
 
-  const authHeader = (req.headers.authorization as string) ?? ''
+  const authHeader = req.headers.authorization || ''
   const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
   if (!bearerToken || !(await verifySupabaseToken(bearerToken))) {
     return send(res, 401, cors, { error: 'Unauthorized' })
   }
 
-  const reqUrl = new URL(req.url ?? '', 'http://localhost')
-  const cuit = reqUrl.searchParams.get('cuit') ?? ''
+  const reqUrl = new URL(req.url || '', 'http://localhost')
+  const cuit = reqUrl.searchParams.get('cuit') || ''
   if (!/^\d{11}$/.test(cuit)) {
     return send(res, 400, cors, { error: 'CUIT inválido', cuit })
   }
 
-  const certPem  = normalizePem(process.env.AFIP_CERT ?? '')
-  const keyPem   = (process.env.AFIP_KEY  ?? '').replace(/\\n/g, '\n')
-  const afipCuit = process.env.AFIP_CUIT  ?? ''
+  const certPem  = normalizePem(process.env.AFIP_CERT || '')
+  const keyPem   = (process.env.AFIP_KEY || '').replace(/\\n/g, '\n')
+  const afipCuit = process.env.AFIP_CUIT || ''
 
   if (!certPem || !keyPem || !afipCuit) {
-    return send(res, 503, cors, {
-      error: 'AFIP_NOT_CONFIGURED',
-      message: 'Variables AFIP_CERT / AFIP_KEY / AFIP_CUIT no configuradas',
-    })
+    return send(res, 503, cors, { error: 'AFIP_NOT_CONFIGURED', message: 'AFIP_CERT / AFIP_KEY / AFIP_CUIT no configuradas' })
   }
 
   const { wsaaUrl, padronUrl } = getUrls()
 
   try {
-    const { token: wsaaToken, sign } = (await readCachedToken()) ?? (await fetchFreshToken(certPem, keyPem, wsaaUrl))
+    const cached = await readCachedToken()
+    const { token: wsaaToken, sign } = cached || (await fetchFreshToken(certPem, keyPem, wsaaUrl))
 
     const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -293,8 +281,8 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
         'SOAPAction': '"http://a13.soap.ws.server.puc.sr/getPersona"',
       },
       body: soapBody,
-      signal: AbortSignal.timeout(15_000),
-      dispatcher: tlsAgent as never,
+      signal: AbortSignal.timeout(15000),
+      dispatcher: tlsAgent,
     })
     const xml = await padronRes.text()
 
@@ -303,33 +291,25 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
         { error: 'PADRON_ERROR', status: padronRes.status, url: padronUrl, message: xml.substring(0, 300) })
     }
 
-    // Parse SOAP response — extract <personaReturn> content
     const faultMsg = xml.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1]?.trim()
     if (faultMsg) {
       return send(res, 400, cors, { error: 'PADRON_FAULT', message: faultMsg })
     }
 
-    const personaXml = xml.match(/<personaReturn>([\s\S]*?)<\/personaReturn>/)?.[1] ?? xml
-    const p = (src: string, tag: string) => src.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() ?? ''
+    const personaXml = xml.match(/<personaReturn>([\s\S]*?)<\/personaReturn>/)?.[1] || xml
+    const p = (src, tag) => src.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() || ''
+    const innerXml = personaXml.match(/<persona>([\s\S]*?)<\/persona>/)?.[1] || personaXml
+    const domXml = innerXml.match(/<domicilio>([\s\S]*?)<\/domicilio>/)?.[1] || ''
 
-    // A13 wraps data inside <persona>
-    const innerXml = personaXml.match(/<persona>([\s\S]*?)<\/persona>/)?.[1] ?? personaXml
-
-    // Domicilio tag is <domicilio> in A13 (not <domicilioFiscal>)
-    const domXml = innerXml.match(/<domicilio>([\s\S]*?)<\/domicilio>/)?.[1] ?? ''
-
-    // Full name: apellido + nombre for FISICA, denominacion for JURIDICA
     const apellido = p(innerXml, 'apellido')
     const nombre   = p(innerXml, 'nombre')
     const denominacion = p(innerXml, 'denominacion') || (apellido ? `${apellido}${nombre ? ', ' + nombre : ''}` : nombre)
 
-    // IVA: try multiple possible tags
     const ivaDesc = p(innerXml, 'descripcionIVA') || p(innerXml, 'condicionIVA') ||
       [...innerXml.matchAll(/<impuesto>([\s\S]*?)<\/impuesto>/g)]
         .map(m => p(m[1], 'descripcionImpuesto') || p(m[1], 'descripcion'))
-        .find(d => /iva|monotribut/i.test(d)) ?? ''
+        .find(d => /iva|monotribut/i.test(d)) || ''
 
-    // Actividades: try <actividadesEconomicas> blocks, fallback to <descripcionActividadPrincipal>
     const actividadesXml = [...innerXml.matchAll(/<actividadesEconomicas>([\s\S]*?)<\/actividadesEconomicas>/g)]
     const actPrincipalDirecta = p(innerXml, 'descripcionActividadPrincipal')
 
@@ -360,7 +340,7 @@ export default async function handler(req: IncomingMessage & { url?: string }, r
 
     return send(res, 200, cors, { datosGenerales: data })
   } catch (err) {
-    const msg = (err as Error).message ?? String(err)
+    const msg = err.message || String(err)
     return send(res, 500, cors, { error: 'WSAA_ERROR', message: msg })
   }
 }
