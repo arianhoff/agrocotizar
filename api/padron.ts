@@ -3,12 +3,18 @@
  * Proxy ARCA/AFIP Padrón — autónomo, sin imports locales.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
-import { createRequire } from 'module'
 import { createClient } from '@supabase/supabase-js'
 
-const require = createRequire(import.meta.url)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const forge = require('node-forge') as any
+let _forge: any = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getForge(): Promise<any> {
+  if (!_forge) {
+    const m = await import('node-forge')
+    _forge = (m as any).default ?? m
+  }
+  return _forge
+}
 
 const ALLOWED_ORIGINS = [
   process.env.SITE_URL ?? '',
@@ -114,7 +120,8 @@ function buildTRA(): string {
 </loginTicketRequest>`
 }
 
-function signTRA(tra: string, certPem: string, keyPem: string): string {
+async function signTRA(tra: string, certPem: string, keyPem: string): Promise<string> {
+  const forge = await getForge()
   const cert       = forge.pki.certificateFromPem(certPem)
   const privateKey = forge.pki.privateKeyFromPem(keyPem)
   const p7         = forge.pkcs7.createSignedData()
@@ -135,7 +142,7 @@ function signTRA(tra: string, certPem: string, keyPem: string): string {
 }
 
 async function fetchFreshToken(certPem: string, keyPem: string): Promise<{ token: string; sign: string }> {
-  const cms = signTRA(buildTRA(), certPem, keyPem)
+  const cms = await signTRA(buildTRA(), certPem, keyPem)
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
                   xmlns:log="http://wsaa.view.sua.dvadac.desein.afip.gov">
