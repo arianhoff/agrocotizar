@@ -216,11 +216,15 @@ function DataSync({ userId }: { userId: string }) {
     window.addEventListener('pageshow', onFocus)
     window.addEventListener('focus', onFocus)
 
+    // Poll every 60s as fallback for iOS where events don't fire on app resume
+    const pollInterval = setInterval(() => { if (!document.hidden) load() }, 60_000)
+
     // Expose manual trigger (e.g. from CatalogPage refresh button)
     dataSyncBus.trigger = load
 
     return () => {
       cancelled = true
+      clearInterval(pollInterval)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pageshow', onFocus)
       window.removeEventListener('focus', onFocus)
