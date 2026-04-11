@@ -1,5 +1,6 @@
 import type { ProductCategory, PaymentMode } from '@/types'
 import { authFetch } from '@/lib/api'
+import { PDFDocument } from 'pdf-lib'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -206,17 +207,158 @@ function extractCompleteObjects(text: string, arrayKey: 'products' | 'options'):
   return objects
 }
 
+// ─── PDF splitting ────────────────────────────────────────────────────────────
+
+// Vercel serverless body limit: 4.5 MB.
+// pdf-lib re-serializes PDFs without preserving compression, so output can be
+// larger than input. Target 2 MB actual saved bytes → ~2.7 MB base64 → safe.
+const MAX_CHUNK_BYTES = 2 * 1024 * 1024
+
+/** Converts a Uint8Array to base64 without stack overflow on large arrays. */
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let k = 0; k < bytes.byteLength; k++) binary += String.fromCharCode(bytes[k])
+  return btoa(binary)
+}
+
+/**
+ * Splits a PDF base64 into chunks that each fit within MAX_CHUNK_BYTES.
+ * Estimates pages per chunk with a 1.5× safety factor for pdf-lib expansion,
+ * then falls back to 1-page chunks if any chunk is still over the limit.
+ */
+async function splitPDFIntoChunks(base64: string): Promise<string[]> {
+  const pdfBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
+  const totalPages = pdfDoc.getPageCount()
+
+  if (pdfBytes.length <= MAX_CHUNK_BYTES) return [base64]
+
+  // Estimate pages per chunk. Apply 1.5× safety factor because pdf-lib
+  // re-serialization typically inflates the output vs. the original.
+  const bytesPerPage = pdfBytes.length / totalPages
+  const pagesPerChunk = Math.max(1, Math.floor(MAX_CHUNK_BYTES / (bytesPerPage * 1.5)))
+
+  const chunks: string[] = []
+
+  for (let i = 0; i < totalPages; i += pagesPerChunk) {
+    const end = Math.min(i + pagesPerChunk, totalPages)
+    const chunkDoc = await PDFDocument.create()
+    const indices = Array.from({ length: end - i }, (_, j) => i + j)
+    const copiedPages = await chunkDoc.copyPages(pdfDoc, indices)
+    copiedPages.forEach(p => chunkDoc.addPage(p))
+    const chunkBytes = await chunkDoc.save()
+
+    if (chunkBytes.byteLength > MAX_CHUNK_BYTES && end - i > 1) {
+      // Still too large after estimation — fall back to 1 page at a time
+      for (let j = i; j < end; j++) {
+        const singleDoc = await PDFDocument.create()
+        const [page] = await singleDoc.copyPages(pdfDoc, [j])
+        singleDoc.addPage(page)
+        const singleBytes = await singleDoc.save()
+        chunks.push(uint8ToBase64(singleBytes))
+      }
+    } else {
+      chunks.push(uint8ToBase64(chunkBytes))
+    }
+  }
+
+  return chunks
+}
+
+/**
+ * Merges multiple ExtractedCatalogResult objects into one, deduplicating by product code.
+ * Later chunks win on price (in case the same product appears in multiple chunks).
+ */
+function mergeResults(results: ExtractedCatalogResult[]): ExtractedCatalogResult {
+  const productMap = new Map<string, ExtractedProduct>()
+  const optionSet = new Set<string>()
+  const mergedOptions: ExtractedOption[] = []
+  const conditionSet = new Set<string>()
+  const mergedConditions: ExtractedPaymentCondition[] = []
+
+  for (const r of results) {
+    for (const p of r.products) {
+      productMap.set(p.code.toLowerCase().trim(), p)
+    }
+    for (const o of r.options) {
+      const key = `${o.product_code}::${o.name}`.toLowerCase()
+      if (!optionSet.has(key)) {
+        optionSet.add(key)
+        mergedOptions.push(o)
+      }
+    }
+    for (const c of r.paymentConditions) {
+      if (!conditionSet.has(c.label)) {
+        conditionSet.add(c.label)
+        mergedConditions.push(c)
+      }
+    }
+  }
+
+  return {
+    products: Array.from(productMap.values()),
+    options: mergedOptions,
+    paymentConditions: mergedConditions,
+  }
+}
+
 // ─── API call ─────────────────────────────────────────────────────────────────
 
 export interface ExtractionProgress {
   products: ExtractedProduct[]
   options: ExtractedOption[]
+  chunk?: { current: number; total: number }
 }
 
 export async function extractCatalogFromFile(
   base64Data: string,
   mediaType: SupportedMediaType,
   _apiKey: string,  // kept for backwards compatibility, ignored — key lives in server env
+  onProgress?: (progress: ExtractionProgress) => void
+): Promise<ExtractedCatalogResult> {
+  const isImage = VALID_IMAGE_TYPES.includes(mediaType)
+
+  // ── Split PDF into chunks if too large for a single request ──────────────────
+  if (!isImage && mediaType === 'application/pdf') {
+    const rawBytes = atob(base64Data).length
+    if (rawBytes > MAX_CHUNK_BYTES) {
+      const chunks = await splitPDFIntoChunks(base64Data)
+      const results: ExtractedCatalogResult[] = []
+      let accumulated: ExtractionProgress = { products: [], options: [] }
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkResult = await extractSingleChunk(
+          chunks[i],
+          'application/pdf',
+          (progress) => {
+            // Merge streaming progress from this chunk with all previous chunks
+            accumulated = {
+              products: [...results.flatMap(r => r.products), ...progress.products],
+              options:  [...results.flatMap(r => r.options),  ...progress.options],
+              chunk: { current: i + 1, total: chunks.length },
+            }
+            onProgress?.(accumulated)
+          }
+        )
+        results.push(chunkResult)
+        accumulated = {
+          products: results.flatMap(r => r.products),
+          options:  results.flatMap(r => r.options),
+          chunk: { current: i + 1, total: chunks.length },
+        }
+        onProgress?.(accumulated)
+      }
+
+      return mergeResults(results)
+    }
+  }
+
+  return extractSingleChunk(base64Data, mediaType, onProgress)
+}
+
+async function extractSingleChunk(
+  base64Data: string,
+  mediaType: SupportedMediaType,
   onProgress?: (progress: ExtractionProgress) => void
 ): Promise<ExtractedCatalogResult> {
   const isImage = VALID_IMAGE_TYPES.includes(mediaType)
@@ -253,6 +395,9 @@ export async function extractCatalogFromFile(
       })
 
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('Una parte del PDF superó el límite del servidor. Intentá con un archivo más pequeño o menos páginas por hoja.')
+        }
         const err = await response.json().catch(() => ({}))
         throw new Error(err?.error?.message ?? `Error API ${response.status}`)
       }
@@ -337,6 +482,9 @@ export async function extractCatalogFromFile(
   }
 
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error('El archivo es demasiado grande para el servidor. El límite es ~3 MB para PDFs. Comprimí el PDF o dividilo en partes más pequeñas.')
+    }
     const err = await response.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Error API ${response.status}`)
   }
@@ -437,6 +585,9 @@ export async function extractPaymentConditionsFromFile(
   })
 
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error('El archivo es demasiado grande para el servidor. El límite es ~3 MB para PDFs. Comprimí el PDF o dividilo en partes más pequeñas.')
+    }
     const err = await response.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Error API ${response.status}`)
   }

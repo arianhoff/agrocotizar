@@ -1243,21 +1243,33 @@ export function CatalogPage() {
     if (!file || !activeList) return
     e.target.value = ''
 
-    // Hard limit: > 50 MB no tiene sentido — la API de Anthropic no acepta más de ~32 MB
-    const HARD_LIMIT_MB = 50
     const fileSizeMB = file.size / 1024 / 1024
-    if (fileSizeMB > HARD_LIMIT_MB) {
-      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite es ${HARD_LIMIT_MB} MB. Dividí el PDF en partes más pequeñas e importalas por separado.`)
+    const isPDF = file.type === 'application/pdf'
+
+    // PDFs up to 50 MB are auto-split into chunks — no client-side size block for PDFs.
+    // Images have no chunking support, so limit to 10 MB.
+    if (!isPDF && fileSizeMB > 10) {
+      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite para imágenes es 10 MB.`)
+      return
+    }
+    if (isPDF && fileSizeMB > 50) {
+      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite para PDFs es 50 MB.`)
       return
     }
 
-    setUploadStep('Leyendo archivo...')
+    setUploadStep(`Leyendo archivo (${fileSizeMB.toFixed(1)} MB)...`)
     setUploadError(null)
     try {
       const { base64, mediaType } = await readFileAsBase64(file)
-      setUploadStep('Enviando a IA...')
+      const needsSplit = isPDF && fileSizeMB > 3
+      setUploadStep(needsSplit
+        ? `Dividiendo PDF en partes (${fileSizeMB.toFixed(1)} MB)...`
+        : `Enviando a IA (${fileSizeMB.toFixed(1)} MB)...`)
       setStreamingProgress(null)
       const result = await extractCatalogFromFile(base64, mediaType, '', (progress) => {
+        if (progress.chunk) {
+          setUploadStep(`Procesando parte ${progress.chunk.current} de ${progress.chunk.total}...`)
+        }
         setStreamingProgress({ ...progress })
       })
       setStreamingProgress(null)
