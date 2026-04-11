@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
-import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage, CreditCard, Upload } from 'lucide-react'
+import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage, CreditCard, Upload, RefreshCw } from 'lucide-react'
 import { useCatalogStore, type CsvRow } from '@/store/catalogStore'
+import { dataSyncBus } from '@/App'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card, Button, Badge, FieldGroup, Label, Input, Select } from '@/components/ui'
 import {
@@ -1379,7 +1380,10 @@ export function CatalogPage() {
         title="Lista de precios"
         subtitle={`${priceLists.length} lista${priceLists.length !== 1 ? 's' : ''} · ${priceLists.reduce((a, pl) => a + getProductsByList(pl.id).length, 0)} productos`}
         actions={
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-2">
+            <Button variant="secondary" onClick={() => dataSyncBus.trigger()} title="Sincronizar con la nube">
+              <RefreshCw size={12} className="inline mr-1" /> Sincronizar
+            </Button>
             <Button variant="primary" onClick={() => setShowNewModal(true)}>
               <Plus size={12} className="inline mr-1" /> Nueva lista
             </Button>
@@ -1402,6 +1406,13 @@ export function CatalogPage() {
             ))}
           </select>
         )}
+        <button
+          onClick={() => dataSyncBus.trigger()}
+          className="shrink-0 p-2 rounded-lg border border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC] cursor-pointer transition-colors"
+          title="Sincronizar"
+        >
+          <RefreshCw size={14} />
+        </button>
         <button
           onClick={() => setShowNewModal(true)}
           className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg bg-[#22C55E] text-white text-[12px] font-medium cursor-pointer hover:bg-[#16A34A] transition-colors"

@@ -38,6 +38,9 @@ function ScrollToTop() {
 // Loads all user data from Supabase when a user signs in and hydrates
 // the Zustand stores. Renders nothing — side-effects only.
 
+// Expose a global trigger so any component can request a refresh
+export const dataSyncBus = { trigger: () => {} }
+
 function DataSync({ userId }: { userId: string }) {
   const savedQuotes = useSavedQuotesStore()
   const clientStore = useClientStore()
@@ -47,8 +50,12 @@ function DataSync({ userId }: { userId: string }) {
 
   useEffect(() => {
     let cancelled = false
+    let lastSync = 0
 
     async function load() {
+      const now = Date.now()
+      if (now - lastSync < 10_000) return  // throttle: max once per 10s
+      lastSync = now
       await Promise.allSettled([
         // Quotes
         supabase
@@ -200,7 +207,18 @@ function DataSync({ userId }: { userId: string }) {
     }
 
     load()
-    return () => { cancelled = true }
+
+    // Re-sync when user switches back to the tab/app
+    const onVisible = () => { if (!document.hidden) load() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    // Expose manual trigger (e.g. from CatalogPage refresh button)
+    dataSyncBus.trigger = load
+
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [userId])  // Re-run only when userId changes (i.e., different account)
 
   return null
