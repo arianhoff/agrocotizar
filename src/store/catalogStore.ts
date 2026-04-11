@@ -70,7 +70,7 @@ const initialState = {
 
 async function syncPriceList(pl: PriceList) {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+  if (!user) { console.warn('[catalog] syncPriceList: no user session'); return }
   const { error } = await supabase.from('price_lists').upsert({
     id: pl.id,
     user_id: user.id,
@@ -84,7 +84,8 @@ async function syncPriceList(pl: PriceList) {
     iva_rate: pl.iva_rate,
     payment_conditions: pl.payment_conditions ?? [],
   })
-  if (error) console.error('[catalog] syncPriceList error:', error.message, error.details)
+  if (error) console.error('[catalog] syncPriceList ERROR:', error.message, error.details, error.hint)
+  else console.log('[catalog] syncPriceList OK:', pl.id, pl.brand, pl.name)
 }
 
 async function syncProduct(p: Product) {
