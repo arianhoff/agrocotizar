@@ -1,8 +1,10 @@
 import {
-  Document, Page, Text, View, StyleSheet, pdf,
+  Document, Page, Text, View, StyleSheet, pdf, Image,
 } from '@react-pdf/renderer'
 import type { Quote, QuoteTotals } from '@/types'
 import { computeTotals } from '@/store/quoteStore'
+import { useSettingsStore } from '@/store/settingsStore'
+import type { CompanyProfile, SellerProfile } from '@/store/settingsStore'
 import { fmt, fmtDate } from '@/utils'
 import { supabase } from '@/lib/supabase/client'
 
@@ -41,7 +43,7 @@ function buildComparisonRows(quote: Quote): PaymentOption[] {
       }
     })
   }
-  // Fallback: hardcoded GEA conditions
+  // Fallback: hardcoded conditions
   const CONDITIONS = [
     { label: 'Contado',           discount: 20, detail: 'Transferencia / E.Cheq mismo día',      mode: 'contado' as const },
     { label: '3 valores',         discount: 15, detail: 'E.Cheq 0-30-60 días',                   mode: 'cheques' as const },
@@ -49,7 +51,7 @@ function buildComparisonRows(quote: Quote): PaymentOption[] {
     { label: '10 valores',        discount: 3,  detail: 'E.Cheq 0-30-...-270 días',              mode: 'cheques' as const },
     { label: '12 valores s/int.', discount: 0,  detail: 'E.Cheq 0-30-...-330 días, sin interés', mode: 'cheques' as const },
   ]
-  return CONDITIONS.map((c, i) => {
+  return CONDITIONS.map((c) => {
     const t = computeTotals({ ...quote, payment: { ...quote.payment, mode: c.mode, discount_pct: c.discount } })
     const isActive = quote.payment.mode === c.mode && (quote.payment.discount_pct ?? 0) === c.discount
     return { ...c, total: t.total, total_ars: t.total * quote.exchange_rate, isActive }
@@ -63,6 +65,10 @@ export function computePaymentOptions(quote: Quote): PaymentOption[] {
 // ─── WhatsApp & Email helpers ─────────────────────────────────
 
 export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
+  const { company, seller } = useSettingsStore.getState()
+  const companyName = company.name || 'Cotizagro'
+  const contactEmail = seller.email || company.email || ''
+
   const arsDisplay = (usd: number) => `$ ${fmt(Math.round(usd * quote.exchange_rate))}`
   const usdDisplay = (usd: number) => `U$S ${fmt(usd)}`
   const validUntil = new Date(quote.created_at)
@@ -71,7 +77,7 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   const options = buildComparisonRows(quote)
 
   const lines: string[] = [
-    '🌾 *GEA Gergolet Agrícola*',
+    `🌾 *${companyName}*`,
     `Cotización N° ${quote.quote_number}`,
     `📅 Válida hasta: ${validUntil.toLocaleDateString('es-AR')}`,
     '',
@@ -101,28 +107,39 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   lines.push(`_TC: $${quote.exchange_rate.toLocaleString('es-AR')} Dólar BNA vendedor_`)
 
   lines.push('')
-  lines.push('Consultas: consultas@gergolet.com.ar')
+  if (contactEmail) lines.push(`Consultas: ${contactEmail}`)
 
   return lines.join('\n')
 }
 
 export function buildEmailSubject(quote: Quote): string {
-  return `Cotización GEA — ${quote.quote_number}${quote.client.name ? ` — ${quote.client.name}` : ''}`
+  const { company } = useSettingsStore.getState()
+  const companyName = company.name || 'Cotizagro'
+  return `Cotización ${companyName} — ${quote.quote_number}${quote.client.name ? ` — ${quote.client.name}` : ''}`
 }
 
 export function buildEmailBody(quote: Quote, totals: QuoteTotals): string {
   const text = buildWhatsAppText(quote, totals)
-  // Strip markdown bold for plain email
   return text.replace(/\*/g, '')
 }
 
 // ─── Styles ───────────────────────────────────────────────────
 
+const GREEN   = '#22C55E'
+const GREEN_D = '#16A34A'
+const NAVY    = '#0F172A'
+const SLATE   = '#64748B'
+const SLATE_L = '#94A3B8'
+const BORDER  = '#BBF7D0'
+const BG_SOFT = '#F0FDF4'
+const BG_ROW  = '#F8FFFA'
+const RED     = '#EF4444'
+
 const S = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
     fontSize: 9,
-    color: '#2C3E50',
+    color: NAVY,
     paddingTop: 32,
     paddingBottom: 40,
     paddingHorizontal: 36,
@@ -135,79 +152,79 @@ const S = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 14,
     borderBottomWidth: 2,
-    borderBottomColor: '#C8952A',
+    borderBottomColor: GREEN,
   },
-  logoText: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#3D2B1F' },
-  logoAccent: { color: '#C8952A' },
-  logoSub: { fontSize: 7, color: '#4A6741', letterSpacing: 2, marginTop: 2 },
+  logoImg: { height: 40, maxWidth: 160, objectFit: 'contain' },
+  logoText: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: NAVY },
+  logoAccent: { color: GREEN },
+  logoSub: { fontSize: 7, color: GREEN_D, letterSpacing: 2, marginTop: 2 },
   headerRight: { alignItems: 'flex-end' },
-  cotNumber: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#C8952A' },
-  cotDate: { fontSize: 8, color: '#8B9BAA', marginTop: 2 },
-  badge: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#4A6741', borderRadius: 2 },
+  cotNumber: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: GREEN },
+  cotDate: { fontSize: 8, color: SLATE_L, marginTop: 2 },
+  badge: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: GREEN_D, borderRadius: 2 },
   badgeText: { fontSize: 7, color: '#FFFFFF', letterSpacing: 1 },
 
   grid2: { flexDirection: 'row', gap: 16, marginBottom: 14 },
   col: { flex: 1 },
 
-  card: { padding: 12, borderWidth: 1, borderColor: '#E8DCC8', borderRadius: 3, backgroundColor: '#FDFAF4' },
-  cardTitle: { fontSize: 7, letterSpacing: 2, color: '#8B9BAA', textTransform: 'uppercase', marginBottom: 6, fontFamily: 'Helvetica-Bold' },
+  card: { padding: 12, borderWidth: 1, borderColor: BORDER, borderRadius: 3, backgroundColor: BG_SOFT },
+  cardTitle: { fontSize: 7, letterSpacing: 2, color: SLATE_L, textTransform: 'uppercase', marginBottom: 6, fontFamily: 'Helvetica-Bold' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
-  label: { color: '#8B9BAA', fontSize: 8 },
-  value: { color: '#2C3E50', fontSize: 8, fontFamily: 'Helvetica-Bold' },
+  label: { color: SLATE_L, fontSize: 8 },
+  value: { color: NAVY, fontSize: 8, fontFamily: 'Helvetica-Bold' },
 
   sectionTitle: {
-    fontSize: 8, letterSpacing: 3, color: '#C8952A',
+    fontSize: 8, letterSpacing: 3, color: GREEN_D,
     textTransform: 'uppercase', fontFamily: 'Helvetica-Bold',
     marginBottom: 8, marginTop: 16,
-    borderBottomWidth: 1, borderBottomColor: '#C8952A',
+    borderBottomWidth: 1, borderBottomColor: GREEN,
     paddingBottom: 3,
   },
 
-  tableHeader: { flexDirection: 'row', backgroundColor: '#4A6741', padding: 6, borderRadius: 2, marginBottom: 1 },
+  tableHeader: { flexDirection: 'row', backgroundColor: NAVY, padding: 6, borderRadius: 2, marginBottom: 1 },
   tableHeaderText: { color: '#FFFFFF', fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 1 },
-  tableRow: { flexDirection: 'row', padding: 5, borderBottomWidth: 1, borderBottomColor: '#F0EAD8' },
-  tableRowAlt: { backgroundColor: '#FDFAF4' },
-  tableCell: { fontSize: 8, color: '#2C3E50' },
-  tableCellRight: { fontSize: 8, color: '#2C3E50', textAlign: 'right' },
-  tableCellTrigo: { fontSize: 8, color: '#C8952A', fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  tableRow: { flexDirection: 'row', padding: 5, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  tableRowAlt: { backgroundColor: BG_ROW },
+  tableCell: { fontSize: 8, color: NAVY },
+  tableCellRight: { fontSize: 8, color: NAVY, textAlign: 'right' },
+  tableCellGreen: { fontSize: 8, color: GREEN_D, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
 
   totalsBox: {
     marginTop: 12, padding: 12,
-    backgroundColor: '#F5EDD8', borderWidth: 1, borderColor: '#C8952A', borderRadius: 3,
+    backgroundColor: BG_SOFT, borderWidth: 1, borderColor: GREEN, borderRadius: 3,
     alignSelf: 'flex-end', width: 220,
   },
   totalLine: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-  totalLabel: { fontSize: 8, color: '#8B9BAA' },
-  totalValue: { fontSize: 8, color: '#2C3E50' },
+  totalLabel: { fontSize: 8, color: SLATE },
+  totalValue: { fontSize: 8, color: NAVY },
   grandTotalLine: {
     flexDirection: 'row', justifyContent: 'space-between',
     marginTop: 6, paddingTop: 6,
-    borderTopWidth: 1.5, borderTopColor: '#C8952A',
+    borderTopWidth: 1.5, borderTopColor: GREEN,
   },
-  grandLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#3D2B1F' },
-  grandValue: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#C8952A' },
+  grandLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: NAVY },
+  grandValue: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: GREEN },
 
-  paymentBox: { padding: 10, backgroundColor: '#F0F7EE', borderWidth: 1, borderColor: '#4A6741', borderRadius: 3, marginTop: 10 },
-  paymentTitle: { fontSize: 8, color: '#4A6741', fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  paymentBox: { padding: 10, backgroundColor: BG_SOFT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, marginTop: 10 },
+  paymentTitle: { fontSize: 8, color: GREEN_D, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
 
-  // Payment comparison table
-  cmpHeader: { flexDirection: 'row', backgroundColor: '#3D2B1F', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 2, marginBottom: 1 },
-  cmpHeaderText: { color: '#F5EDD8', fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
-  cmpRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#EDE0C8' },
-  cmpRowHighlight: { backgroundColor: '#FFF8EC' },
-  cmpCell: { fontSize: 8, color: '#2C3E50' },
-  cmpCellGold: { fontSize: 9, color: '#C8952A', fontFamily: 'Helvetica-Bold', textAlign: 'right' },
-  cmpCellGray: { fontSize: 7, color: '#8B9BAA', textAlign: 'right' },
-  cmpDiscount: { fontSize: 8, color: '#4A6741', fontFamily: 'Helvetica-Bold', textAlign: 'center' },
+  cmpHeader: { flexDirection: 'row', backgroundColor: NAVY, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 2, marginBottom: 1 },
+  cmpHeaderText: { color: '#E2E8F0', fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
+  cmpRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  cmpRowHighlight: { backgroundColor: '#DCFCE7' },
+  cmpCell: { fontSize: 8, color: NAVY },
+  cmpCellGreen: { fontSize: 9, color: GREEN_D, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  cmpCellGray: { fontSize: 7, color: SLATE_L, textAlign: 'right' },
+  cmpDiscount: { fontSize: 8, color: GREEN_D, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
 
   footer: {
     position: 'absolute', bottom: 20, left: 36, right: 36,
     flexDirection: 'row', justifyContent: 'space-between',
-    borderTopWidth: 1, borderTopColor: '#E8DCC8', paddingTop: 6,
+    borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 6,
   },
-  footerText: { fontSize: 7, color: '#8B9BAA' },
+  footerText: { fontSize: 7, color: SLATE_L },
 
-  notesBox: { padding: 10, backgroundColor: '#FAFAFA', borderWidth: 1, borderColor: '#E0D8C8', borderRadius: 3, marginTop: 10 },
+  notesBox: { padding: 10, backgroundColor: '#FAFAFA', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 3, marginTop: 10 },
   notesText: { fontSize: 8, color: '#5A5A5A', lineHeight: 1.5 },
 })
 
@@ -225,14 +242,30 @@ const PAYMENT_LABEL: Record<string, string> = {
 
 // ─── PDF Document ─────────────────────────────────────────────
 
-function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
-  const { client, currency, payment, taxes, delivery } = quote
+function QuotePDF({
+  quote,
+  totals,
+  company,
+  seller,
+}: {
+  quote: Quote
+  totals: QuoteTotals
+  company: CompanyProfile
+  seller: SellerProfile
+}) {
+  const { payment, taxes, delivery } = quote
+  const client = quote.client
   const ars = (usd: number) => `$ ${fmt(Math.round(usd * quote.exchange_rate))}`
   const usd = (n: number) => `U$S ${fmt(n)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
   const paymentOptions = buildComparisonRows(quote)
+
+  const companyName    = company.name  || 'Cotizagro'
+  const companyEmail   = company.email || seller.email || ''
+  const companyPhone   = company.phone || seller.phone || ''
+  const hasLogo        = Boolean(company.logo_base64)
 
   return (
     <Document>
@@ -241,14 +274,25 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         {/* ── Header ── */}
         <View style={S.header}>
           <View>
-            <Text style={S.logoText}>Cotiz<Text style={S.logoAccent}>agro</Text></Text>
-            <Text style={S.logoSub}>MAQUINARIA AGRÍCOLA · ARGENTINA</Text>
+            {hasLogo ? (
+              <Image src={company.logo_base64} style={S.logoImg} />
+            ) : (
+              <>
+                <Text style={S.logoText}>
+                  {companyName.slice(0, -1)}
+                  <Text style={S.logoAccent}>{companyName.slice(-1)}</Text>
+                </Text>
+                <Text style={S.logoSub}>MAQUINARIA AGRÍCOLA · ARGENTINA</Text>
+              </>
+            )}
           </View>
           <View style={S.headerRight}>
             <Text style={S.cotNumber}>{quote.quote_number}</Text>
             <Text style={S.cotDate}>Fecha: {fmtDate(quote.created_at)}</Text>
             <Text style={S.cotDate}>Válida hasta: {validUntil.toLocaleDateString('es-AR')}</Text>
-            <View style={S.badge}><Text style={S.badgeText}>GEA · GERGOLET AGRÍCOLA</Text></View>
+            <View style={S.badge}>
+              <Text style={S.badgeText}>{companyName.toUpperCase()}</Text>
+            </View>
           </View>
         </View>
 
@@ -296,13 +340,13 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
           return (
             <View key={item.id} style={[S.tableRow, i % 2 === 1 ? S.tableRowAlt : {}]}>
               <Text style={[S.tableCell, { flex: 3 }]}>{item.description}</Text>
-              <Text style={[S.tableCell, { flex: 1, color: '#8B9BAA' }]}>{item.category}</Text>
+              <Text style={[S.tableCell, { flex: 1, color: SLATE_L }]}>{item.category}</Text>
               <Text style={[S.tableCellRight, { width: 35 }]}>{item.quantity}</Text>
               <Text style={[S.tableCellRight, { width: 70 }]}>{ars(item.unit_price)}</Text>
-              <Text style={[S.tableCellRight, { width: 40, color: item.discount_pct > 0 ? '#C0392B' : '#8B9BAA' }]}>
+              <Text style={[S.tableCellRight, { width: 40, color: item.discount_pct > 0 ? RED : SLATE_L }]}>
                 {item.discount_pct > 0 ? `${item.discount_pct}%` : '—'}
               </Text>
-              <Text style={[S.tableCellTrigo, { width: 75 }]}>{ars(sub)}</Text>
+              <Text style={[S.tableCellGreen, { width: 75 }]}>{ars(sub)}</Text>
             </View>
           )
         })}
@@ -311,13 +355,13 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         <View style={S.totalsBox}>
           {totals.item_discounts > 0 && (
             <><View style={S.totalLine}><Text style={S.totalLabel}>Subtotal bruto</Text><Text style={S.totalValue}>{ars(totals.gross)}</Text></View>
-              <View style={S.totalLine}><Text style={S.totalLabel}>Desc. por ítem</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {ars(totals.item_discounts)}</Text></View></>
+              <View style={S.totalLine}><Text style={S.totalLabel}>Desc. por ítem</Text><Text style={[S.totalValue, { color: RED }]}>– {ars(totals.item_discounts)}</Text></View></>
           )}
           {totals.general_discounts > 0 && (
-            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. generales</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {ars(totals.general_discounts)}</Text></View>
+            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. generales</Text><Text style={[S.totalValue, { color: RED }]}>– {ars(totals.general_discounts)}</Text></View>
           )}
           {totals.payment_discount > 0 && (
-            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. {PAYMENT_LABEL[payment.mode]}</Text><Text style={[S.totalValue, { color: '#C0392B' }]}>– {ars(totals.payment_discount)}</Text></View>
+            <View style={S.totalLine}><Text style={S.totalLabel}>Desc. {PAYMENT_LABEL[payment.mode]}</Text><Text style={[S.totalValue, { color: RED }]}>– {ars(totals.payment_discount)}</Text></View>
           )}
           {totals.freight > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>Flete</Text><Text style={S.totalValue}>{ars(totals.freight)}</Text></View>}
           {totals.iibb > 0 && <View style={S.totalLine}><Text style={S.totalLabel}>IIBB</Text><Text style={S.totalValue}>{ars(totals.iibb)}</Text></View>}
@@ -339,13 +383,13 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
             {payment.mode === 'financiado' && totals.deposit !== undefined && (
               <View>
                 <View style={S.totalLine}><Text style={S.totalLabel}>Anticipo ({payment.deposit_pct}%)</Text><Text style={S.totalValue}>{ars(totals.deposit)}</Text></View>
-                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.installments} cuotas de</Text><Text style={[S.totalValue, { color: '#4A6741' }]}>{ars(totals.installment_amount)}/mes</Text></View>
+                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.installments} cuotas de</Text><Text style={[S.totalValue, { color: GREEN_D }]}>{ars(totals.installment_amount)}/mes</Text></View>
                 {totals.total_financed && <View style={S.totalLine}><Text style={S.totalLabel}>Total financiado</Text><Text style={S.totalValue}>{ars(totals.total_financed)}</Text></View>}
               </View>
             )}
             {payment.mode === 'leasing' && (
               <View>
-                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.lease_term_months} cánones de</Text><Text style={[S.totalValue, { color: '#4A6741' }]}>{ars(totals.installment_amount)}/mes</Text></View>
+                <View style={S.totalLine}><Text style={S.totalLabel}>{payment.lease_term_months} cánones de</Text><Text style={[S.totalValue, { color: GREEN_D }]}>{ars(totals.installment_amount)}/mes</Text></View>
                 <View style={S.totalLine}><Text style={S.totalLabel}>Opción de compra ({payment.buyout_pct}%)</Text><Text style={S.totalValue}>{ars(totals.total * (payment.buyout_pct ?? 10) / 100)}</Text></View>
                 {totals.total_financed && <View style={S.totalLine}><Text style={S.totalLabel}>Total leasing</Text><Text style={S.totalValue}>{ars(totals.total_financed)}</Text></View>}
               </View>
@@ -362,19 +406,19 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
           <Text style={[S.cmpHeaderText, { width: 80, textAlign: 'right' }]}>TOTAL USD</Text>
         </View>
         {paymentOptions.map((opt, i) => (
-          <View key={opt.label} style={[S.cmpRow, opt.isActive ? S.cmpRowHighlight : (i % 2 === 1 ? { backgroundColor: '#FAFAF8' } : {})]}>
+          <View key={opt.label} style={[S.cmpRow, opt.isActive ? S.cmpRowHighlight : (i % 2 === 1 ? { backgroundColor: BG_ROW } : {})]}>
             <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              {opt.isActive && <Text style={{ fontSize: 7, color: '#4A6741' }}>✓ </Text>}
+              {opt.isActive && <Text style={{ fontSize: 7, color: GREEN_D }}>✓ </Text>}
               <Text style={S.cmpCell}>{opt.label}</Text>
-              <Text style={{ fontSize: 7, color: '#8B9BAA', marginLeft: 4 }}>{opt.detail}</Text>
+              <Text style={{ fontSize: 7, color: SLATE_L, marginLeft: 4 }}>{opt.detail}</Text>
             </View>
             <Text style={[S.cmpDiscount, { width: 60 }]}>{opt.discount > 0 ? `${opt.discount}%` : '—'}</Text>
-            <Text style={[S.cmpCellGold, { width: 90 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
+            <Text style={[S.cmpCellGreen, { width: 90 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
             <Text style={[S.cmpCellGray, { width: 80 }]}>{usd(opt.total)}</Text>
           </View>
         ))}
         <View style={{ marginTop: 4, paddingHorizontal: 8 }}>
-          <Text style={{ fontSize: 7, color: '#8B9BAA' }}>
+          <Text style={{ fontSize: 7, color: SLATE_L }}>
             Precios en pesos argentinos. TC Dólar BNA vendedor: ${quote.exchange_rate.toLocaleString('es-AR')}. Incluye IVA 10,5%.
           </Text>
         </View>
@@ -388,17 +432,19 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
         )}
 
         {/* ── Legal note ── */}
-        <View style={[S.notesBox, { marginTop: 10, backgroundColor: '#FFF9F0', borderColor: '#C8952A' }]}>
-          <Text style={[S.notesText, { color: '#8B6A20', fontSize: 7 }]}>
+        <View style={[S.notesBox, { marginTop: 10, backgroundColor: BG_SOFT, borderColor: BORDER }]}>
+          <Text style={[S.notesText, { color: SLATE, fontSize: 7 }]}>
             Los precios se expresan en pesos argentinos al TC Dólar BNA vendedor ${quote.exchange_rate.toLocaleString('es-AR')}. Los valores en USD son de referencia.
-            Precios incluyen IVA 10,5%. GEA se reserva el derecho de modificar precios sin previo aviso. Oferta válida por {quote.valid_days} días.
+            Precios incluyen IVA 10,5%. {companyName} se reserva el derecho de modificar precios sin previo aviso. Oferta válida por {quote.valid_days} días.
           </Text>
         </View>
 
         {/* ── Footer ── */}
         <View style={S.footer}>
           <Text style={S.footerText}>Cotizagro · {quote.quote_number} · {fmtDate(quote.created_at)}</Text>
-          <Text style={S.footerText}>Gergolet Agrícola S.A. · consultas@gergolet.com.ar</Text>
+          <Text style={S.footerText}>
+            {companyName}{companyEmail ? ` · ${companyEmail}` : ''}{companyPhone ? ` · ${companyPhone}` : ''}
+          </Text>
         </View>
 
       </Page>
@@ -408,9 +454,15 @@ function QuotePDF({ quote, totals }: { quote: Quote; totals: QuoteTotals }) {
 
 // ─── Export functions ─────────────────────────────────────────
 
+function getSettings() {
+  const { company, seller } = useSettingsStore.getState()
+  return { company, seller }
+}
+
 export async function downloadQuotePDF(quote: Quote): Promise<void> {
+  const { company, seller } = getSettings()
   const totals = computeTotals(quote)
-  const blob = await pdf(<QuotePDF quote={quote} totals={totals} />).toBlob()
+  const blob = await pdf(<QuotePDF quote={quote} totals={totals} company={company} seller={seller} />).toBlob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -423,8 +475,9 @@ export async function downloadQuotePDF(quote: Quote): Promise<void> {
 
 /** Genera el PDF como File (para Web Share API o adjuntos) */
 export async function buildQuotePDFFile(quote: Quote): Promise<File> {
+  const { company, seller } = getSettings()
   const totals = computeTotals(quote)
-  const blob = await pdf(<QuotePDF quote={quote} totals={totals} />).toBlob()
+  const blob = await pdf(<QuotePDF quote={quote} totals={totals} company={company} seller={seller} />).toBlob()
   const name = `${quote.quote_number}-${(quote.client.name || 'cliente').replace(/\s+/g, '-')}.pdf`
   return new File([blob], name, { type: 'application/pdf' })
 }
@@ -439,16 +492,15 @@ export async function shareQuotePDF(
   quote: Quote,
   channel: 'whatsapp' | 'email',
 ): Promise<void> {
-  // Open the window SYNCHRONOUSLY while we're still inside the user-gesture handler.
-  // Browsers block window.open() called after any await.
   const win = window.open('about:blank', '_blank')
 
   const totals  = computeTotals(quote)
   const file    = await buildQuotePDFFile(quote)
   const subject = buildEmailSubject(quote)
-  const shortMsg = `Hola${quote.client.name ? ` ${quote.client.name}` : ''}, te envío la cotización ${quote.quote_number} de GEA Gergolet Agrícola. Adjunto el PDF. ¡Cualquier consulta estoy a disposición!`
+  const { company, seller } = getSettings()
+  const companyName = company.name || 'Cotizagro'
+  const shortMsg = `Hola${quote.client.name ? ` ${quote.client.name}` : ''}, te envío la cotización ${quote.quote_number} de ${companyName}. Adjunto el PDF. ¡Cualquier consulta estoy a disposición!`
 
-  // ── Web Share API ────────────────────────────────────────────────────────────
   const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })
 
   if (canShare) {
@@ -461,12 +513,10 @@ export async function shareQuotePDF(
       })
       return
     } catch (e) {
-      // User cancelled or error — fall through to fallback
       if ((e as Error).name === 'AbortError') return
     }
   }
 
-  // ── Fallback: descarga PDF + navega la ventana ya abierta ────────────────────
   const url = URL.createObjectURL(file)
   const a = document.createElement('a')
   a.href = url; a.download = file.name
@@ -498,8 +548,6 @@ export type UploadResult =
 
 /**
  * Sube el PDF a Supabase Storage y devuelve una URL firmada válida 30 días.
- * Siempre devuelve un objeto con `ok: true | false` para que el llamador
- * pueda mostrar un error accionable.
  */
 export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
   try {
@@ -527,7 +575,7 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
 
     const { data: signed, error: signError } = await supabase.storage
       .from('quote-pdfs')
-      .createSignedUrl(path, 60 * 60 * 24 * 30) // 30 días
+      .createSignedUrl(path, 60 * 60 * 24 * 30)
 
     if (signError || !signed?.signedUrl) {
       return { ok: false, reason: 'sign', detail: signError?.message ?? 'Sin URL firmada' }
