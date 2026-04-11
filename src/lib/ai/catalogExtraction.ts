@@ -253,6 +253,9 @@ export async function extractCatalogFromFile(
       })
 
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('El archivo es demasiado grande para el servidor. El límite es ~3 MB para PDFs. Comprimí el PDF o dividilo en partes más pequeñas.')
+        }
         const err = await response.json().catch(() => ({}))
         throw new Error(err?.error?.message ?? `Error API ${response.status}`)
       }
@@ -337,6 +340,9 @@ export async function extractCatalogFromFile(
   }
 
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error('El archivo es demasiado grande para el servidor. El límite es ~3 MB para PDFs. Comprimí el PDF o dividilo en partes más pequeñas.')
+    }
     const err = await response.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Error API ${response.status}`)
   }
@@ -437,6 +443,9 @@ export async function extractPaymentConditionsFromFile(
   })
 
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error('El archivo es demasiado grande para el servidor. El límite es ~3 MB para PDFs. Comprimí el PDF o dividilo en partes más pequeñas.')
+    }
     const err = await response.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Error API ${response.status}`)
   }

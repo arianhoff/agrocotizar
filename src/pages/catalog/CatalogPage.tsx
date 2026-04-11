@@ -1243,19 +1243,26 @@ export function CatalogPage() {
     if (!file || !activeList) return
     e.target.value = ''
 
-    // Hard limit: > 50 MB no tiene sentido — la API de Anthropic no acepta más de ~32 MB
-    const HARD_LIMIT_MB = 50
+    // Vercel serverless functions have a 4.5 MB body limit.
+    // Base64 encoding adds ~33%, so the real PDF limit is ~3 MB.
     const fileSizeMB = file.size / 1024 / 1024
-    if (fileSizeMB > HARD_LIMIT_MB) {
-      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite es ${HARD_LIMIT_MB} MB. Dividí el PDF en partes más pequeñas e importalas por separado.`)
+    const isPDF = file.type === 'application/pdf'
+    const LIMIT_MB = isPDF ? 3 : 10
+    if (fileSizeMB > LIMIT_MB) {
+      setUploadError(
+        `El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). ` +
+        (isPDF
+          ? `El límite para PDFs es ${LIMIT_MB} MB. Comprimí el PDF (ilovepdf.com) o dividilo en partes más pequeñas e importalas por separado.`
+          : `El límite para imágenes es ${LIMIT_MB} MB.`)
+      )
       return
     }
 
-    setUploadStep('Leyendo archivo...')
+    setUploadStep(`Leyendo archivo (${fileSizeMB.toFixed(1)} MB)...`)
     setUploadError(null)
     try {
       const { base64, mediaType } = await readFileAsBase64(file)
-      setUploadStep('Enviando a IA...')
+      setUploadStep(`Enviando a IA (${fileSizeMB.toFixed(1)} MB)...`)
       setStreamingProgress(null)
       const result = await extractCatalogFromFile(base64, mediaType, '', (progress) => {
         setStreamingProgress({ ...progress })
