@@ -4,10 +4,15 @@
  */
 
 const ALLOWED_ORIGINS = [
+  // Production domain (hardcoded as primary)
+  'https://cotizagro.com.ar',
+  'https://www.cotizagro.com.ar',
+  // Configurable via env var (Vercel Dashboard → Environment Variables → SITE_URL)
   process.env.SITE_URL || '',
+  // Vercel deployment URLs (auto-set by Vercel)
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
-  // Vercel preview URLs for the teste branch
   process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : '',
+  // Local dev
   'http://localhost:5173',
   'http://localhost:4173',
 ].filter(Boolean)
