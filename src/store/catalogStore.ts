@@ -380,9 +380,12 @@ export const useCatalogStore = create<CatalogStore>()(
     }),
     {
       name: 'agrocotizar-catalog',
-      version: 4,
+      version: 5,
       migrate: (state: any, version: number) => {
-        // v2/v4: remove legacy gea-enero-2026 data (always, for users upgrading from any version)
+        const isUUID = (id: string) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+
+        // Always: remove legacy gea-enero-2026 data
         let priceLists = (state.priceLists ?? []).filter((pl: any) => pl.id !== 'gea-enero-2026')
         let products   = (state.products   ?? []).filter((p: any)  => p.price_list_id !== 'gea-enero-2026')
         let options: Record<string, any[]> = Object.fromEntries(
@@ -393,8 +396,6 @@ export const useCatalogStore = create<CatalogStore>()(
 
         if (version < 3) {
           // v3: regenerate any product/option IDs that are not valid UUIDs
-          const isUUID = (id: string) =>
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
           const idRemap: Record<string, string> = {}
 
           products = products.map((p: any) => {
@@ -417,6 +418,21 @@ export const useCatalogStore = create<CatalogStore>()(
           }
           options = newOptions
         }
+
+        // v5: purge any options whose map key or product_id is not a valid UUID.
+        // These are legacy entries with product codes as IDs — they would cause FK
+        // violations in Supabase because no matching product row exists.
+        // This runs unconditionally so it cleans up users who were already on v3/v4
+        // when corrupted data was introduced.
+        options = Object.fromEntries(
+          Object.entries(options)
+            .filter(([pid]) => isUUID(pid))
+            .map(([pid, opts]) => [
+              pid,
+              (opts as any[]).filter((o: any) => isUUID(o.product_id)),
+            ])
+            .filter(([, opts]) => (opts as any[]).length > 0)
+        )
 
         return { priceLists, products, options }
       },
