@@ -77,8 +77,19 @@ const BCRA_WORKER = 'https://broken-snow-e6e3.arianhoffmann16.workers.dev'
 async function bcraFetch(path: string): Promise<Response> {
   const cuit = path.split('/').pop() ?? ''
   const historicas = path.includes('Historicas')
-  const url = `${BCRA_WORKER}?cuit=${cuit}${historicas ? '&historicas=true' : ''}`
-  return fetch(url, { signal: AbortSignal.timeout(8000) })
+
+  // Try direct browser fetch with no Referer (BCRA blocks requests with Referer from unknown domains)
+  try {
+    const direct = await fetch(`https://api.bcra.gob.ar${path}`, {
+      referrerPolicy: 'no-referrer',
+      signal: AbortSignal.timeout(6000),
+    })
+    if (direct.ok || direct.status === 404) return direct
+  } catch { /* fall through to Worker */ }
+
+  // Fallback: Cloudflare Worker proxy
+  const workerUrl = `${BCRA_WORKER}?cuit=${cuit}${historicas ? '&historicas=true' : ''}`
+  return fetch(workerUrl, { signal: AbortSignal.timeout(8000) })
 }
 
 async function fetchBCRA(cuit: string): Promise<
