@@ -106,12 +106,12 @@ async function syncProduct(p: Product): Promise<boolean> {
 }
 
 async function syncOption(opt: ProductOption) {
-  // Always ensure the parent product exists in Supabase first
+  // Ensure the parent product exists in the local store before attempting sync.
+  // If it's not found (orphaned option from importCSV or deleteProduct), skip entirely.
   const product = useCatalogStore.getState().products.find(p => p.id === opt.product_id)
-  if (product) {
-    const ok = await syncProduct(product)
-    if (!ok) return  // parent failed — skip option to avoid FK violation
-  }
+  if (!product) return  // orphaned option — no parent in store, skip to avoid FK violation
+  const ok = await syncProduct(product)
+  if (!ok) return  // parent failed — skip option
   const { error } = await supabase.from('product_options').upsert({
     id: opt.id,
     product_id: opt.product_id,
@@ -174,9 +174,13 @@ export const useCatalogStore = create<CatalogStore>()(
       },
 
       deleteProduct: (id) => {
-        set(s => ({
-          products: s.products.filter(p => p.id !== id),
-        }))
+        set(s => {
+          const { [id]: _removed, ...remainingOptions } = s.options
+          return {
+            products: s.products.filter(p => p.id !== id),
+            options: remainingOptions,
+          }
+        })
         supabase.from('products').delete().eq('id', id).then()
       },
 
@@ -247,12 +251,22 @@ export const useCatalogStore = create<CatalogStore>()(
           currency: r.currency,
           description: r.description,
         }))
-        set(s => ({
-          products: [
-            ...s.products.filter(p => p.price_list_id !== priceListId),
-            ...newProducts,
-          ],
-        }))
+        set(s => {
+          // Collect IDs of replaced products so we can drop their orphaned options
+          const replacedIds = new Set(
+            s.products.filter(p => p.price_list_id === priceListId).map(p => p.id)
+          )
+          const cleanOptions = Object.fromEntries(
+            Object.entries(s.options).filter(([pid]) => !replacedIds.has(pid))
+          )
+          return {
+            products: [
+              ...s.products.filter(p => p.price_list_id !== priceListId),
+              ...newProducts,
+            ],
+            options: cleanOptions,
+          }
+        })
         // Remove old products from Supabase, insert new ones
         supabase.from('products').delete().eq('price_list_id', priceListId).then(() => {
           if (newProducts.length) {
