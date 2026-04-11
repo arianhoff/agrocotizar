@@ -1243,18 +1243,16 @@ export function CatalogPage() {
     if (!file || !activeList) return
     e.target.value = ''
 
-    // Vercel serverless functions have a 4.5 MB body limit.
-    // Base64 encoding adds ~33%, so the real PDF limit is ~3 MB.
     const fileSizeMB = file.size / 1024 / 1024
     const isPDF = file.type === 'application/pdf'
-    const LIMIT_MB = isPDF ? 3 : 10
-    if (fileSizeMB > LIMIT_MB) {
-      setUploadError(
-        `El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). ` +
-        (isPDF
-          ? `El límite para PDFs es ${LIMIT_MB} MB. Comprimí el PDF (ilovepdf.com) o dividilo en partes más pequeñas e importalas por separado.`
-          : `El límite para imágenes es ${LIMIT_MB} MB.`)
-      )
+
+    // Hard limit: images > 10 MB, PDFs > 50 MB (PDFs get auto-split into chunks)
+    if (!isPDF && fileSizeMB > 10) {
+      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite para imágenes es 10 MB.`)
+      return
+    }
+    if (isPDF && fileSizeMB > 50) {
+      setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite para PDFs es 50 MB.`)
       return
     }
 
@@ -1262,9 +1260,15 @@ export function CatalogPage() {
     setUploadError(null)
     try {
       const { base64, mediaType } = await readFileAsBase64(file)
-      setUploadStep(`Enviando a IA (${fileSizeMB.toFixed(1)} MB)...`)
+      const needsSplit = isPDF && fileSizeMB > 3
+      setUploadStep(needsSplit
+        ? `Dividiendo PDF en partes (${fileSizeMB.toFixed(1)} MB)...`
+        : `Enviando a IA (${fileSizeMB.toFixed(1)} MB)...`)
       setStreamingProgress(null)
       const result = await extractCatalogFromFile(base64, mediaType, '', (progress) => {
+        if (progress.chunk) {
+          setUploadStep(`Procesando parte ${progress.chunk.current} de ${progress.chunk.total}...`)
+        }
         setStreamingProgress({ ...progress })
       })
       setStreamingProgress(null)
