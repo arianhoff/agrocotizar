@@ -125,18 +125,26 @@ function maxSituacion(periodos: DeudorPeriodo[]): SituacionCode {
   return max
 }
 
+async function bcraFetch(path: string, cuit: string): Promise<Response> {
+  const direct = `https://api.bcra.gob.ar${path}`
+  const proxy  = `/api/deudas?cuit=${cuit}${path.includes('Historicas') ? '&historicas=true' : ''}`
+  try {
+    const res = await fetch(direct, { headers: { Accept: 'application/json' } })
+    if (res.ok || res.status === 404) return res
+    return fetch(proxy, { headers: { Accept: 'application/json' } })
+  } catch {
+    return fetch(proxy, { headers: { Accept: 'application/json' } })
+  }
+}
+
 async function checkBCRA(cuit: string): Promise<BCRAState> {
   const clean = cuit.replace(/-/g, '')
   if (clean.length !== 11) return { status: 'error', message: 'CUIT inválido (debe tener 11 dígitos)' }
 
   try {
-    const res = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/${clean}`, {
-      headers: { Accept: 'application/json' },
-    })
+    const res = await bcraFetch(`/centraldedeudores/v1.0/Deudas/${clean}`, clean)
     if (res.status === 404) {
-      const resHist = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/Historicas/${clean}`, {
-        headers: { Accept: 'application/json' },
-      }).catch(() => null)
+      const resHist = await bcraFetch(`/centraldedeudores/v1.0/Deudas/Historicas/${clean}`, clean).catch(() => null)
       let denominacion = ''
       if (resHist?.ok) {
         const histData = await resHist.json().catch(() => null)

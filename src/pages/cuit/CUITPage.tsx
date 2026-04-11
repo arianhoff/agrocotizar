@@ -72,6 +72,20 @@ function maxSit(periodos: DeudorPeriodo[]): SituacionCode {
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
+async function bcraFetch(path: string): Promise<Response> {
+  // Try direct browser fetch first, fall back to our proxy if blocked/error
+  const direct = `https://api.bcra.gob.ar${path}`
+  const proxy  = `/api/deudas?cuit=${path.split('/').pop()}${path.includes('Historicas') ? '&historicas=true' : ''}`
+  try {
+    const res = await fetch(direct, { headers: { Accept: 'application/json' } })
+    if (res.ok || res.status === 404) return res
+    // Non-ok and non-404 (e.g. 400, 403) → try proxy
+    return fetch(proxy, { headers: { Accept: 'application/json' } })
+  } catch {
+    return fetch(proxy, { headers: { Accept: 'application/json' } })
+  }
+}
+
 async function fetchBCRA(cuit: string): Promise<
   | { status: 'ok'; data: DeudorResult }
   | { status: 'sin_deudas'; denominacion: string }
@@ -79,13 +93,9 @@ async function fetchBCRA(cuit: string): Promise<
 > {
   const clean = cuit.replace(/-/g, '')
   try {
-    const res = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/${clean}`, {
-      headers: { Accept: 'application/json' },
-    })
+    const res = await bcraFetch(`/centraldedeudores/v1.0/Deudas/${clean}`)
     if (res.status === 404) {
-      const resHist = await fetch(`https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/Historicas/${clean}`, {
-        headers: { Accept: 'application/json' },
-      }).catch(() => null)
+      const resHist = await bcraFetch(`/centraldedeudores/v1.0/Deudas/Historicas/${clean}`).catch(() => null)
       let denominacion = ''
       if (resHist?.ok) {
         const d = await resHist.json().catch(() => null)

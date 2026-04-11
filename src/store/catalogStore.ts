@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { PriceList, Product, ProductOption, ProductCategory, PaymentConditionTemplate, PaymentCondition } from '@/types'
 import { supabase } from '@/lib/supabase/client'
 
-const uid = () => Math.random().toString(36).slice(2, 9)
+const uid = () => crypto.randomUUID()
 
 interface CatalogStore {
   priceLists: PriceList[]
