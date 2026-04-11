@@ -70,9 +70,11 @@ function getSupabase() {
 async function verifySupabaseToken(bearerToken) {
   const url = process.env.SUPABASE_URL || ''
   const key = process.env.SUPABASE_ANON_KEY || ''
-  if (!url || !key) return false
+  if (!url || !key) return { ok: false, reason: 'SUPABASE_URL o SUPABASE_ANON_KEY no configuradas' }
+  if (!bearerToken) return { ok: false, reason: 'Sin token Bearer en el request' }
   const { data: { user }, error } = await createClient(url, key).auth.getUser(bearerToken)
-  return !error && !!user
+  if (error || !user) return { ok: false, reason: error?.message || 'Token inválido o expirado' }
+  return { ok: true }
 }
 
 async function readCachedToken() {
@@ -236,8 +238,9 @@ export default async function handler(req, res) {
 
   const authHeader = req.headers.authorization || ''
   const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
-  if (!bearerToken || !(await verifySupabaseToken(bearerToken))) {
-    return send(res, 401, cors, { error: 'Unauthorized' })
+  const auth = await verifySupabaseToken(bearerToken)
+  if (!auth.ok) {
+    return send(res, 401, cors, { error: 'Unauthorized', reason: auth.reason })
   }
 
   const reqUrl = new URL(req.url || '', 'http://localhost')
