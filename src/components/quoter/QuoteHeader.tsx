@@ -125,11 +125,13 @@ function maxSituacion(periodos: DeudorPeriodo[]): SituacionCode {
   return max
 }
 
+const BCRA_WORKER = 'https://broken-snow-e6e3.arianhoffmann16.workers.dev'
+
 async function bcraFetch(path: string): Promise<Response> {
-  return fetch(`https://api.bcra.gob.ar${path}`, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(8000),
-  })
+  const cuit = path.split('/').pop() ?? ''
+  const historicas = path.includes('Historicas')
+  const url = `${BCRA_WORKER}?cuit=${cuit}${historicas ? '&historicas=true' : ''}`
+  return fetch(url, { signal: AbortSignal.timeout(8000) })
 }
 
 async function checkBCRA(cuit: string): Promise<BCRAState> {
