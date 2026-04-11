@@ -4,6 +4,7 @@
  */
 import { createClient } from '@supabase/supabase-js'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { handleCors } from './_cors.js'
 
 const tlsAgent = new Agent({
   connect: {
@@ -27,23 +28,6 @@ async function getForge() {
   return _forge
 }
 
-const ALLOWED_ORIGINS = [
-  process.env.SITE_URL || '',
-  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
-  'http://localhost:5173',
-  'http://localhost:4173',
-].filter(Boolean)
-
-function getCorsHeaders(origin) {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*'
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  }
-}
 
 function getUrls() {
   const isProd = (process.env.AFIP_ENV || '').toLowerCase().trim() === 'prod'
@@ -227,14 +211,8 @@ function send(res, status, headers, body) {
 }
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || ''
-  const cors = getCorsHeaders(origin)
-
-  if (req.method === 'OPTIONS') {
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
-    res.statusCode = 204
-    return res.end()
-  }
+  const { handled, cors } = handleCors(req, res)
+  if (handled) return
 
   const authHeader = req.headers.authorization || ''
   const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
@@ -338,7 +316,7 @@ export default async function handler(req, res) {
         : actPrincipalDirecta
           ? [{ orden: 1, descripcionActividad: actPrincipalDirecta }]
           : [],
-      _raw: xml.substring(0, 1500),
+      _raw: process.env.NODE_ENV === 'development' ? xml.substring(0, 1500) : undefined,
     }
 
     return send(res, 200, cors, { datosGenerales: data })

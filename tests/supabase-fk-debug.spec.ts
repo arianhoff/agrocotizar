@@ -10,8 +10,8 @@
 
 import { test } from '@playwright/test'
 
-const SUPABASE_URL  = 'https://yolbbkxxtsrhpfkowejd.supabase.co'
-const SUPABASE_ANON = 'sb_publishable_AuAbFJ7Dwyn5HCwXaqVA3A_qpbCUbww'
+const SUPABASE_URL  = process.env.SUPABASE_URL  || 'https://yolbbkxxtsrhpfkowejd.supabase.co'
+const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || ''
 const APP_URL       = 'http://localhost:5173'
 
 test.setTimeout(120_000)

@@ -1,23 +1,18 @@
 /**
  * /api/anthropic
- * Proxy Anthropic API
+ * Proxy Anthropic API — requires valid Supabase JWT
  */
-const ALLOWED_ORIGINS = [
-  process.env.SITE_URL || '',
-  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
-  'http://localhost:5173',
-  'http://localhost:4173',
-].filter(Boolean)
+import { createClient } from '@supabase/supabase-js'
+import { handleCors } from './_cors.js'
 
-function getCorsHeaders(origin) {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*'
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  }
+async function verifySupabaseToken(bearerToken) {
+  const url = process.env.SUPABASE_URL || ''
+  const key = process.env.SUPABASE_ANON_KEY || ''
+  if (!url || !key) return { ok: false, reason: 'SUPABASE_URL o SUPABASE_ANON_KEY no configuradas' }
+  if (!bearerToken) return { ok: false, reason: 'Sin token Bearer en el request' }
+  const { data: { user }, error } = await createClient(url, key).auth.getUser(bearerToken)
+  if (error || !user) return { ok: false, reason: error?.message || 'Token inválido o expirado' }
+  return { ok: true }
 }
 
 function readBody(req) {
@@ -30,20 +25,24 @@ function readBody(req) {
 }
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || ''
-  const cors = getCorsHeaders(origin)
-
-  if (req.method === 'OPTIONS') {
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
-    res.statusCode = 204
-    return res.end()
-  }
+  const { handled, cors } = handleCors(req, res)
+  if (handled) return
 
   if (req.method !== 'POST') {
     Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
     res.setHeader('Content-Type', 'application/json')
     res.statusCode = 405
     return res.end(JSON.stringify({ error: 'Method not allowed' }))
+  }
+
+  const authHeader = req.headers.authorization || ''
+  const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
+  const auth = await verifySupabaseToken(bearerToken)
+  if (!auth.ok) {
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = 401
+    return res.end(JSON.stringify({ error: 'Unauthorized', reason: auth.reason }))
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY

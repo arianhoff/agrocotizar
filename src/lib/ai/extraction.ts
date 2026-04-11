@@ -1,4 +1,5 @@
 import type { AIQuoteExtraction, Product } from '@/types'
+import { authFetch } from '@/lib/api'
 
 // ─── System prompt builder (uses user catalog) ────────────────────────────────
 
@@ -57,7 +58,7 @@ Estructura (solo incluí campos que puedas inferir):
 // ─── API call ─────────────────────────────────────────────────────────────────
 
 export async function extractQuoteFromText(text: string, products: Product[]): Promise<AIQuoteExtraction> {
-  const response = await fetch('/api/anthropic', {
+  const response = await authFetch('/api/anthropic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

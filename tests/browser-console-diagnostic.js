@@ -5,8 +5,9 @@
  * Verifica: migración v5, opciones corruptas, estado en Supabase, y errores FK.
  */
 ;(async () => {
+  // Obtené estos valores desde Supabase Dashboard → Settings → API
   const SUPABASE_URL  = 'https://yolbbkxxtsrhpfkowejd.supabase.co'
-  const SUPABASE_ANON = 'sb_publishable_AuAbFJ7Dwyn5HCwXaqVA3A_qpbCUbww'
+  const SUPABASE_ANON = window.__SUPABASE_ANON__ || prompt('Ingresá el anon key de Supabase:')
 
   const isUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const sep = (title) => console.log(`\n${'═'.repeat(55)}\n  ${title}\n${'═'.repeat(55)}`)

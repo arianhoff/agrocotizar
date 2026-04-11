@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Mic, MicOff, Loader2, Wheat } from 'lucide-react'
+import DOMPurify from 'dompurify'
 import { cn } from '@/utils'
 import { extractQuoteFromText, CATEGORY_ICONS } from '@/lib/ai/extraction'
 import { useQuoteStore } from '@/store/quoteStore'
@@ -241,10 +242,13 @@ export function AIChat() {
                 : { background: C.accentLight, borderColor: C.accentBorder + '80' }
               }
               dangerouslySetInnerHTML={{
-                __html: msg.content
-                  .replace(/\*\*(.*?)\*\*/g, `<strong style="color:${C.accent}">$1</strong>`)
-                  .replace(/_(.*?)_/g, '<em>$1</em>')
-                  .replace(/\n/g, '<br/>')
+                __html: DOMPurify.sanitize(
+                  msg.content
+                    .replace(/\*\*(.*?)\*\*/g, `<strong style="color:${C.accent}">$1</strong>`)
+                    .replace(/_(.*?)_/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br/>'),
+                  { ALLOWED_TAGS: ['strong', 'em', 'br'], ALLOWED_ATTR: ['style'] }
+                )
               }}
             />
           </div>

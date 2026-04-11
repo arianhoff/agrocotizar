@@ -1,64 +1,19 @@
 /**
  * /api/deudas?cuit=20392481770
- * /api/deudas?cuit=20392481770&historicas=true
  * Proxy BCRA Central de Deudores
+ * NOTE: BCRA blocks cloud IPs — returns 503 immediately.
  */
-import { Agent, fetch as undiciFetch } from 'undici'
-
-const agent = new Agent({
-  connect: {
-    rejectUnauthorized: false,
-    ciphers: [
-      'TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256',
-      'ECDHE-ECDSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES128-GCM-SHA256',
-      'ECDHE-ECDSA-AES256-GCM-SHA384', 'ECDHE-RSA-AES256-GCM-SHA384',
-      'ECDHE-ECDSA-CHACHA20-POLY1305', 'ECDHE-RSA-CHACHA20-POLY1305',
-    ].join(':'),
-    minVersion: 'TLSv1.2',
-  },
-})
-
-const ALLOWED_ORIGINS = [
-  process.env.SITE_URL || '',
-  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
-  'http://localhost:5173',
-  'http://localhost:4173',
-].filter(Boolean)
-
-function getCorsHeaders(origin) {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*'
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  }
-}
+import { handleCors } from './_cors.js'
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || ''
-  const cors = getCorsHeaders(origin)
+  const { handled, cors } = handleCors(req, res)
+  if (handled) return
 
-  if (req.method === 'OPTIONS') {
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
-    res.statusCode = 204
-    return res.end()
-  }
-
-  const reqUrl = new URL(req.url || '', 'http://localhost')
-  const cuit = reqUrl.searchParams.get('cuit') || ''
-  const historicas = reqUrl.searchParams.get('historicas') === 'true'
-
-  const bcraPath = historicas
-    ? `/centraldedeudores/v1.0/Deudas/Historicas/${cuit}`
-    : `/centraldedeudores/v1.0/Deudas/${cuit}`
-  const url = `https://api.bcra.gob.ar${bcraPath}`
-
-  // BCRA blocks AWS/Vercel IPs — return 503 immediately so the frontend
-  // can show a clear error instead of waiting for a timeout.
   Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
   res.setHeader('Content-Type', 'application/json')
   res.statusCode = 503
-  res.end(JSON.stringify({ error: 'BCRA_BLOCKED', detail: 'BCRA bloquea las IPs de servidores en la nube. Consultá directamente en bcra.gob.ar' }))
+  res.end(JSON.stringify({
+    error: 'BCRA_BLOCKED',
+    detail: 'BCRA bloquea las IPs de servidores en la nube. Consultá directamente en bcra.gob.ar',
+  }))
 }

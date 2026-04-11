@@ -1,4 +1,5 @@
 import type { ProductCategory, PaymentMode } from '@/types'
+import { authFetch } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,7 +246,7 @@ export async function extractCatalogFromFile(
 
   if (useStreaming) {
     try {
-      const response = await fetch('/api/anthropic', {
+      const response = await authFetch('/api/anthropic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...requestBody, stream: true }),
@@ -322,7 +323,7 @@ export async function extractCatalogFromFile(
   // ── Non-streaming fallback ─────────────────────────────────────────────────
   let response: Response
   try {
-    response = await fetch('/api/anthropic', {
+    response = await authFetch('/api/anthropic', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
@@ -418,7 +419,7 @@ export async function extractPaymentConditionsFromFile(
     ? { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType, data: base64Data } }
     : { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64Data } }
 
-  const response = await fetch('/api/anthropic', {
+  const response = await authFetch('/api/anthropic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

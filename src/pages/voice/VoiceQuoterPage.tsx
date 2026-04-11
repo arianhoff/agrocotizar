@@ -140,7 +140,8 @@ Respondé SOLO JSON válido:
 "update" solo con los campos de este turno. "item" para agregar un producto.`
 
   const messages = history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }))
-  const res = await fetch('/api/anthropic', {
+  const { authFetch } = await import('@/lib/api')
+  const res = await authFetch('/api/anthropic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 256, system, messages }),
