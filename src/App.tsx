@@ -148,7 +148,16 @@ function DataSync({ userId }: { userId: string }) {
           .eq('user_id', userId)
           .then(async ({ data: plData }) => {
             if (cancelled || !plData?.length) return
-            const priceLists: PriceList[] = plData.map((row: any) => ({
+
+            // Clean up legacy GEA list that may have been synced to Supabase under user's account
+            const legacyIds = plData.filter((r: any) => r.id === 'gea-enero-2026').map((r: any) => r.id)
+            if (legacyIds.length) {
+              supabase.from('price_lists').delete().in('id', legacyIds).then()
+            }
+            const cleanPlData = plData.filter((r: any) => r.id !== 'gea-enero-2026')
+            if (!cleanPlData.length) return
+
+            const priceLists: PriceList[] = cleanPlData.map((row: any) => ({
               id: row.id,
               tenant_id: row.user_id ?? '',
               brand: row.brand,

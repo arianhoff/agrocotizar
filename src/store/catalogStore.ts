@@ -89,7 +89,8 @@ async function syncPriceList(pl: PriceList) {
   else console.log('[catalog] syncPriceList OK:', pl.id, pl.brand, pl.name)
 }
 
-async function syncProduct(p: Product) {
+// Returns true on success, false on failure (allows callers to gate dependent syncs)
+async function syncProduct(p: Product): Promise<boolean> {
   const { error } = await supabase.from('products').upsert({
     id: p.id,
     price_list_id: p.price_list_id,
@@ -100,38 +101,26 @@ async function syncProduct(p: Product) {
     base_price: p.base_price,
     currency: p.currency,
   })
-  if (error) console.error('[catalog] syncProduct error:', error.message, p.id)
+  if (error) { console.error('[catalog] syncProduct error:', error.message, p.id); return false }
+  return true
 }
 
 async function syncOption(opt: ProductOption) {
-  const payload = {
+  // Always ensure the parent product exists in Supabase first
+  const product = useCatalogStore.getState().products.find(p => p.id === opt.product_id)
+  if (product) {
+    const ok = await syncProduct(product)
+    if (!ok) return  // parent failed — skip option to avoid FK violation
+  }
+  const { error } = await supabase.from('product_options').upsert({
     id: opt.id,
     product_id: opt.product_id,
     name: opt.name,
     price: opt.price,
     currency: opt.currency ?? 'USD',
     requires_commission: opt.requires_commission,
-  }
-  const { error } = await supabase.from('product_options').upsert(payload)
-  if (error) {
-    const isFk = error.code === '23503' || String(error.code) === '23503' ||
-      (error.message ?? '').includes('foreign key constraint')
-    if (isFk) {
-      // FK violation: parent product not in Supabase yet — sync it first, then retry
-      const product = useCatalogStore.getState().products.find(p => p.id === opt.product_id)
-      if (product) {
-        console.log('[catalog] syncOption FK retry: syncing product first', product.id)
-        await syncProduct(product)
-        const { error: e2 } = await supabase.from('product_options').upsert(payload)
-        if (e2) console.error('[catalog] syncOption retry error:', e2.message, opt.id)
-        else console.log('[catalog] syncOption retry OK:', opt.id)
-      } else {
-        console.error('[catalog] syncOption FK: product not found in local store for', opt.product_id)
-      }
-    } else {
-      console.error('[catalog] syncOption error [code=' + error.code + ']:', error.message, opt.id)
-    }
-  }
+  })
+  if (error) console.error('[catalog] syncOption error:', error.message, opt.id)
 }
 
 export const useCatalogStore = create<CatalogStore>()(
@@ -200,8 +189,7 @@ export const useCatalogStore = create<CatalogStore>()(
             product_id: productId,
           }
           // Always sync parent product first to avoid FK violation
-          const product = s.products.find(p => p.id === productId)
-          ;(product ? syncProduct(product) : Promise.resolve()).then(() => syncOption(newOpt))
+          syncOption(newOpt)  // syncOption always syncs parent product first
           return { options: { ...s.options, [productId]: [...existing, newOpt] } }
         })
       },
