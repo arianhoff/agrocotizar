@@ -91,7 +91,7 @@ async function syncPriceList(pl: PriceList) {
 
 // Returns true on success, false on failure (allows callers to gate dependent syncs)
 async function syncProduct(p: Product): Promise<boolean> {
-  const { error } = await supabase.from('products').upsert({
+  const { data, error } = await supabase.from('products').upsert({
     id: p.id,
     price_list_id: p.price_list_id,
     code: p.code,
@@ -100,8 +100,10 @@ async function syncProduct(p: Product): Promise<boolean> {
     category: p.category,
     base_price: p.base_price,
     currency: p.currency,
-  })
+  }).select('id')
   if (error) { console.error('[catalog] syncProduct error:', error.message, p.id); return false }
+  // If RLS silently blocked the insert, data will be empty — treat as failure
+  if (!data || data.length === 0) { console.error('[catalog] syncProduct: no row returned (RLS block?)', p.id); return false }
   return true
 }
 
@@ -359,11 +361,17 @@ export const useCatalogStore = create<CatalogStore>()(
         const ownProducts = products.filter(p => ownListIds.has(p.price_list_id))
         await Promise.allSettled(ownProducts.map(syncProduct))
 
-        // Only sync options for those products
+        // Verify which products actually landed in Supabase before syncing options
+        // (prevents FK violations when RLS silently blocks a product insert)
         const ownProductIds = new Set(ownProducts.map(p => p.id))
+        const { data: confirmedRows } = await supabase
+          .from('products').select('id').in('id', [...ownProductIds])
+        const confirmedProductIds = new Set((confirmedRows ?? []).map((r: { id: string }) => r.id))
+
+        // Only sync options whose parent product is confirmed in Supabase
         const ownOpts = Object.entries(options)
-          .filter(([pid]) => ownProductIds.has(pid))
-          .flatMap(([, opts]) => opts)
+          .filter(([pid]) => confirmedProductIds.has(pid))
+          .flatMap(([, opts]) => opts.filter(o => confirmedProductIds.has(o.product_id)))
         await Promise.allSettled(ownOpts.map(syncOption))
       },
 
