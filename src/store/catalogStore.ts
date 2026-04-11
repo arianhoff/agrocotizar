@@ -352,7 +352,7 @@ export const useCatalogStore = create<CatalogStore>()(
           Object.entries(state.options ?? {}).filter(([k]) =>
             !(state.products ?? []).find((p: any) => p.id === k && p.price_list_id === 'gea-enero-2026')
           )
-        )
+        ) as Record<string, any[]>
 
         if (version < 3) {
           // v3: regenerate any product/option IDs that are not valid UUIDs
