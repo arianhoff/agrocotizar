@@ -209,12 +209,22 @@ function extractCompleteObjects(text: string, arrayKey: 'products' | 'options'):
 
 // ─── PDF splitting ────────────────────────────────────────────────────────────
 
-// Vercel serverless body limit: 4.5 MB. Base64 adds ~33%, so max PDF = ~3 MB.
-const MAX_CHUNK_BYTES = 3 * 1024 * 1024
+// Vercel serverless body limit: 4.5 MB.
+// pdf-lib re-serializes PDFs without preserving compression, so output can be
+// larger than input. Target 2 MB actual saved bytes → ~2.7 MB base64 → safe.
+const MAX_CHUNK_BYTES = 2 * 1024 * 1024
+
+/** Converts a Uint8Array to base64 without stack overflow on large arrays. */
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let k = 0; k < bytes.byteLength; k++) binary += String.fromCharCode(bytes[k])
+  return btoa(binary)
+}
 
 /**
  * Splits a PDF base64 into chunks that each fit within MAX_CHUNK_BYTES.
- * Returns an array of base64 strings (one per chunk).
+ * Estimates pages per chunk with a 1.5× safety factor for pdf-lib expansion,
+ * then falls back to 1-page chunks if any chunk is still over the limit.
  */
 async function splitPDFIntoChunks(base64: string): Promise<string[]> {
   const pdfBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
@@ -223,24 +233,35 @@ async function splitPDFIntoChunks(base64: string): Promise<string[]> {
 
   if (pdfBytes.length <= MAX_CHUNK_BYTES) return [base64]
 
-  // Estimate how many pages fit in each chunk
+  // Estimate pages per chunk. Apply 1.5× safety factor because pdf-lib
+  // re-serialization typically inflates the output vs. the original.
   const bytesPerPage = pdfBytes.length / totalPages
-  const pagesPerChunk = Math.max(1, Math.floor(MAX_CHUNK_BYTES / bytesPerPage))
+  const pagesPerChunk = Math.max(1, Math.floor(MAX_CHUNK_BYTES / (bytesPerPage * 1.5)))
 
   const chunks: string[] = []
+
   for (let i = 0; i < totalPages; i += pagesPerChunk) {
-    const chunk = await PDFDocument.create()
     const end = Math.min(i + pagesPerChunk, totalPages)
+    const chunkDoc = await PDFDocument.create()
     const indices = Array.from({ length: end - i }, (_, j) => i + j)
-    const copiedPages = await chunk.copyPages(pdfDoc, indices)
-    copiedPages.forEach(p => chunk.addPage(p))
-    const chunkBytes = await chunk.save()
-    // Convert Uint8Array to base64 without stack overflow (for large arrays)
-    let binary = ''
-    const len = chunkBytes.byteLength
-    for (let k = 0; k < len; k++) binary += String.fromCharCode(chunkBytes[k])
-    chunks.push(btoa(binary))
+    const copiedPages = await chunkDoc.copyPages(pdfDoc, indices)
+    copiedPages.forEach(p => chunkDoc.addPage(p))
+    const chunkBytes = await chunkDoc.save()
+
+    if (chunkBytes.byteLength > MAX_CHUNK_BYTES && end - i > 1) {
+      // Still too large after estimation — fall back to 1 page at a time
+      for (let j = i; j < end; j++) {
+        const singleDoc = await PDFDocument.create()
+        const [page] = await singleDoc.copyPages(pdfDoc, [j])
+        singleDoc.addPage(page)
+        const singleBytes = await singleDoc.save()
+        chunks.push(uint8ToBase64(singleBytes))
+      }
+    } else {
+      chunks.push(uint8ToBase64(chunkBytes))
+    }
   }
+
   return chunks
 }
 
@@ -375,7 +396,7 @@ async function extractSingleChunk(
 
       if (!response.ok) {
         if (response.status === 413) {
-          throw new Error('El archivo es demasiado grande para el servidor. El límite es ~3 MB para PDFs. Comprimí el PDF o dividilo en partes más pequeñas.')
+          throw new Error('Una parte del PDF superó el límite del servidor. Intentá con un archivo más pequeño o menos páginas por hoja.')
         }
         const err = await response.json().catch(() => ({}))
         throw new Error(err?.error?.message ?? `Error API ${response.status}`)
