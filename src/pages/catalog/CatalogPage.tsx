@@ -1246,7 +1246,8 @@ export function CatalogPage() {
     const fileSizeMB = file.size / 1024 / 1024
     const isPDF = file.type === 'application/pdf'
 
-    // Hard limit: images > 10 MB, PDFs > 50 MB (PDFs get auto-split into chunks)
+    // PDFs up to 50 MB are auto-split into chunks — no client-side size block for PDFs.
+    // Images have no chunking support, so limit to 10 MB.
     if (!isPDF && fileSizeMB > 10) {
       setUploadError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El límite para imágenes es 10 MB.`)
       return
