@@ -47,6 +47,7 @@ interface CatalogStore {
 
   // Supabase sync
   hydrate: (data: { priceLists: PriceList[]; products: Product[]; options: Record<string, ProductOption[]> }) => void
+  syncAll: () => Promise<void>
   clear: () => void
 }
 
@@ -103,15 +104,28 @@ async function syncProduct(p: Product) {
 }
 
 async function syncOption(opt: ProductOption) {
-  const { error } = await supabase.from('product_options').upsert({
+  const payload = {
     id: opt.id,
     product_id: opt.product_id,
     name: opt.name,
     price: opt.price,
     currency: opt.currency ?? 'USD',
     requires_commission: opt.requires_commission,
-  })
-  if (error) console.error('[catalog] syncOption error:', error.message, opt.id)
+  }
+  const { error } = await supabase.from('product_options').upsert(payload)
+  if (error) {
+    if (error.code === '23503') {
+      // FK violation: parent product not in Supabase yet — sync it first, then retry
+      const product = useCatalogStore.getState().products.find(p => p.id === opt.product_id)
+      if (product) {
+        await syncProduct(product)
+        const { error: e2 } = await supabase.from('product_options').upsert(payload)
+        if (e2) console.error('[catalog] syncOption retry error:', e2.message, opt.id)
+      }
+    } else {
+      console.error('[catalog] syncOption error:', error.message, opt.id)
+    }
+  }
 }
 
 export const useCatalogStore = create<CatalogStore>()(
@@ -228,7 +242,7 @@ export const useCatalogStore = create<CatalogStore>()(
 
       importCSV: (priceListId, rows) => {
         const newProducts: Product[] = rows.map(r => ({
-          id: r.code + '-' + uid(),
+          id: uid(),
           price_list_id: priceListId,
           code: r.code,
           name: r.name,
@@ -317,20 +331,58 @@ export const useCatalogStore = create<CatalogStore>()(
         }))
       },
 
+      syncAll: async () => {
+        const { products, options } = get()
+        // Products first (options have FK dependency on products)
+        await Promise.allSettled(products.map(syncProduct))
+        const allOpts = Object.values(options).flat()
+        await Promise.allSettled(allOpts.map(syncOption))
+      },
+
       clear: () => set({ ...initialState }),
     }),
     {
       name: 'agrocotizar-catalog',
-      version: 2,
-      migrate: (state: any) => ({
-        priceLists: (state.priceLists ?? []).filter((pl: any) => pl.id !== 'gea-enero-2026'),
-        products:   (state.products   ?? []).filter((p: any)  => p.price_list_id !== 'gea-enero-2026'),
-        options:    Object.fromEntries(
+      version: 3,
+      migrate: (state: any, version: number) => {
+        // v2: remove legacy gea-enero-2026 data
+        let priceLists = (state.priceLists ?? []).filter((pl: any) => pl.id !== 'gea-enero-2026')
+        let products   = (state.products   ?? []).filter((p: any)  => p.price_list_id !== 'gea-enero-2026')
+        let options: Record<string, any[]> = Object.fromEntries(
           Object.entries(state.options ?? {}).filter(([k]) =>
             !(state.products ?? []).find((p: any) => p.id === k && p.price_list_id === 'gea-enero-2026')
           )
-        ),
-      }),
+        )
+
+        if (version < 3) {
+          // v3: regenerate any product/option IDs that are not valid UUIDs
+          const isUUID = (id: string) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+          const idRemap: Record<string, string> = {}
+
+          products = products.map((p: any) => {
+            if (!isUUID(p.id)) {
+              const newId = crypto.randomUUID()
+              idRemap[p.id] = newId
+              return { ...p, id: newId }
+            }
+            return p
+          })
+
+          const newOptions: Record<string, any[]> = {}
+          for (const [key, opts] of Object.entries(options)) {
+            const newKey = idRemap[key] ?? key
+            newOptions[newKey] = (opts as any[]).map((o: any) => ({
+              ...o,
+              id: isUUID(o.id) ? o.id : crypto.randomUUID(),
+              product_id: idRemap[o.product_id] ?? o.product_id,
+            }))
+          }
+          options = newOptions
+        }
+
+        return { priceLists, products, options }
+      },
       partialize: (s) => ({
         priceLists: s.priceLists,
         products: s.products,

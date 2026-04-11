@@ -1208,7 +1208,7 @@ function PaymentConditionsImportReview({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export function CatalogPage() {
-  const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition } = useCatalogStore()
+  const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition, syncAll } = useCatalogStore()
   const [showNewModal, setShowNewModal] = useState(false)
   const [showAdjustModal, setShowAdjustModal] = useState(false)
   const [diff, setDiff] = useState<{ catalog: CatalogDiff; paymentConditions: ExtractedPaymentCondition[] } | null>(null)
@@ -1381,7 +1381,7 @@ export function CatalogPage() {
         subtitle={`${priceLists.length} lista${priceLists.length !== 1 ? 's' : ''} · ${priceLists.reduce((a, pl) => a + getProductsByList(pl.id).length, 0)} productos`}
         actions={
           <div className="hidden md:flex items-center gap-2">
-            <Button variant="secondary" onClick={() => dataSyncBus.trigger()} title="Sincronizar con la nube">
+            <Button variant="secondary" onClick={() => { dataSyncBus.trigger(); syncAll() }} title="Sincronizar con la nube">
               <RefreshCw size={12} className="inline mr-1" /> Sincronizar
             </Button>
             <Button variant="primary" onClick={() => setShowNewModal(true)}>
@@ -1407,7 +1407,7 @@ export function CatalogPage() {
           </select>
         )}
         <button
-          onClick={() => dataSyncBus.trigger()}
+          onClick={() => { dataSyncBus.trigger(); syncAll() }}
           className="shrink-0 p-2 rounded-lg border border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC] cursor-pointer transition-colors"
           title="Sincronizar"
         >
