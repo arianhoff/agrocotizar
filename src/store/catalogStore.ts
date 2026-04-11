@@ -150,7 +150,7 @@ export const useCatalogStore = create<CatalogStore>()(
       },
 
       addProduct: (product) => {
-        const newP: Product = { ...product, id: product.code + '-' + uid() }
+        const newP: Product = { ...product, id: uid() }
         set(s => ({ products: [...s.products, newP] }))
         syncProduct(newP)
         return newP
@@ -176,7 +176,7 @@ export const useCatalogStore = create<CatalogStore>()(
           const existing = s.options[productId] ?? []
           const newOpt: ProductOption = {
             ...option,
-            id: productId + '-' + uid(),
+            id: uid(),
             product_id: productId,
           }
           syncOption(newOpt)
