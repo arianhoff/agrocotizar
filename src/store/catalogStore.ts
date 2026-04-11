@@ -351,9 +351,9 @@ export const useCatalogStore = create<CatalogStore>()(
     }),
     {
       name: 'agrocotizar-catalog',
-      version: 3,
+      version: 4,
       migrate: (state: any, version: number) => {
-        // v2: remove legacy gea-enero-2026 data
+        // v2/v4: remove legacy gea-enero-2026 data (always, for users upgrading from any version)
         let priceLists = (state.priceLists ?? []).filter((pl: any) => pl.id !== 'gea-enero-2026')
         let products   = (state.products   ?? []).filter((p: any)  => p.price_list_id !== 'gea-enero-2026')
         let options: Record<string, any[]> = Object.fromEntries(
