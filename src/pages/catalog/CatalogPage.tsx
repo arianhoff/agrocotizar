@@ -49,7 +49,7 @@ function parseCSV(text: string): CsvRow[] {
 function NewPriceListModal({ onClose }: { onClose: () => void }) {
   const { addPriceList, setActivePriceListId } = useCatalogStore()
   const [form, setForm] = useState({
-    brand: '', name: '', currency: 'USD' as 'USD' | 'ARS',
+    brand: '', name: '',
     valid_from: new Date().toISOString().slice(0, 10),
     iva_included: true, iva_rate: 10.5,
   })
@@ -58,7 +58,7 @@ function NewPriceListModal({ onClose }: { onClose: () => void }) {
     if (!form.brand || !form.name) return
     const pl = addPriceList({
       tenant_id: '*', is_active: true,
-      brand: form.brand, name: form.name, currency: form.currency,
+      brand: form.brand, name: form.name, currency: 'USD' as 'USD' | 'ARS',
       valid_from: form.valid_from, iva_included: form.iva_included, iva_rate: form.iva_rate,
     })
     setActivePriceListId(pl.id)
@@ -77,19 +77,10 @@ function NewPriceListModal({ onClose }: { onClose: () => void }) {
           <Label>Nombre de la lista</Label>
           <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ej: Lista Enero 2026" />
         </FieldGroup>
-        <div className="grid grid-cols-2 gap-3">
-          <FieldGroup>
-            <Label>Moneda</Label>
-            <Select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value as 'USD' | 'ARS' }))}>
-              <option value="USD">USD</option>
-              <option value="ARS">ARS</option>
-            </Select>
-          </FieldGroup>
-          <FieldGroup>
-            <Label>Vigencia desde</Label>
-            <Input type="date" value={form.valid_from} onChange={e => setForm(f => ({ ...f, valid_from: e.target.value }))} />
-          </FieldGroup>
-        </div>
+        <FieldGroup>
+          <Label>Vigencia desde</Label>
+          <Input type="date" value={form.valid_from} onChange={e => setForm(f => ({ ...f, valid_from: e.target.value }))} />
+        </FieldGroup>
         <div className="flex gap-3 mt-4">
           <Button variant="primary" className="flex-1" onClick={handleCreate}>Crear lista</Button>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
