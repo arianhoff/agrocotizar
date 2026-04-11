@@ -4,11 +4,11 @@
 
 - [ ] Hacer funcionar métodos de pago en el inicio de sesión
 - [ ] Empezar gratis: bloquear app a los 15 días de prueba
-- [ ] Logo cargado en configuración también aparece en el PDF
-- [ ] Hacer test de seguridad
-- [ ] Auto-detectar moneda (ARS/USD) al cargar lista de precios
+- [x] Logo cargado en configuración también aparece en el PDF
+- [x] Hacer test de seguridad
+- [x] Auto-detectar moneda (ARS/USD) al cargar lista de precios
 - [ ] Al borrar lista/cliente, eliminar en todos lados (Supabase + local)
-- [ ] Revisar listas extensas o mayores a 50MB
+- [x] Revisar listas extensas o mayores a 50MB (auto-split en chunks de 2MB)
 
 ## Bugs conocidos / Deuda técnica
 
