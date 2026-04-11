@@ -114,16 +114,22 @@ async function syncOption(opt: ProductOption) {
   }
   const { error } = await supabase.from('product_options').upsert(payload)
   if (error) {
-    if (error.code === '23503') {
+    const isFk = error.code === '23503' || String(error.code) === '23503' ||
+      (error.message ?? '').includes('foreign key constraint')
+    if (isFk) {
       // FK violation: parent product not in Supabase yet — sync it first, then retry
       const product = useCatalogStore.getState().products.find(p => p.id === opt.product_id)
       if (product) {
+        console.log('[catalog] syncOption FK retry: syncing product first', product.id)
         await syncProduct(product)
         const { error: e2 } = await supabase.from('product_options').upsert(payload)
         if (e2) console.error('[catalog] syncOption retry error:', e2.message, opt.id)
+        else console.log('[catalog] syncOption retry OK:', opt.id)
+      } else {
+        console.error('[catalog] syncOption FK: product not found in local store for', opt.product_id)
       }
     } else {
-      console.error('[catalog] syncOption error:', error.message, opt.id)
+      console.error('[catalog] syncOption error [code=' + error.code + ']:', error.message, opt.id)
     }
   }
 }
