@@ -107,13 +107,9 @@ async function syncProduct(p: Product): Promise<boolean> {
   return true
 }
 
+// Only called from syncAll, after products are confirmed in Supabase.
+// Do NOT call this directly from addOption/updateOptionPrice — those race with product inserts.
 async function syncOption(opt: ProductOption) {
-  // Ensure the parent product exists in the local store before attempting sync.
-  // If it's not found (orphaned option from importCSV or deleteProduct), skip entirely.
-  const product = useCatalogStore.getState().products.find(p => p.id === opt.product_id)
-  if (!product) return  // orphaned option — no parent in store, skip to avoid FK violation
-  const ok = await syncProduct(product)
-  if (!ok) return  // parent failed — skip option
   const { error } = await supabase.from('product_options').upsert({
     id: opt.id,
     product_id: opt.product_id,
@@ -196,8 +192,8 @@ export const useCatalogStore = create<CatalogStore>()(
           const existing = s.options[productId] ?? []
           return { options: { ...s.options, [productId]: [...existing, newOpt] } }
         })
-        // Sync AFTER set() so getState() reflects the new option's product
-        syncOption(newOpt)
+        // No immediate sync — syncAll handles options after confirming products exist in Supabase.
+        // Individual fire-and-forget option syncs race with product inserts and cause FK violations.
       },
 
       updateOptionPrice: (productId, optionName, newPrice) => {
@@ -207,9 +203,7 @@ export const useCatalogStore = create<CatalogStore>()(
           const updated = opts.map(o =>
             normalize(o.name) === normalize(optionName) ? { ...o, price: newPrice } : o
           )
-          updated.forEach(o => {
-            if (normalize(o.name) === normalize(optionName)) syncOption(o)
-          })
+          // No immediate sync — let syncAll handle option updates
           return {
             options: {
               ...s.options,
