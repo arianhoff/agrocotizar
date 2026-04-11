@@ -100,8 +100,17 @@ function NewPriceListModal({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Price Adjustment Modal ───────────────────────────────────────────────────
+function detectCsvCurrency(rows: CsvRow[]): 'USD' | 'ARS' | null {
+  if (rows.length === 0) return null
+  const arsCount = rows.filter(r => r.currency === 'ARS').length
+  const usdCount = rows.length - arsCount
+  if (arsCount > usdCount) return 'ARS'
+  if (usdCount > arsCount) return 'USD'
+  return null
+}
+
 function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClose: () => void }) {
-  const { applyPriceAdjustment, importCSV, getProductsByList, updateProduct } = useCatalogStore()
+  const { applyPriceAdjustment, importCSV, getProductsByList, updateProduct, updatePriceList } = useCatalogStore()
   const [tab, setTab] = useState<'general' | 'individual' | 'csv'>('general')
 
   // General tab
@@ -116,6 +125,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
   // CSV tab
   const [csvText, setCsvText] = useState('')
   const [preview, setPreview] = useState<CsvRow[]>([])
+  const [detectedCurrency, setDetectedCurrency] = useState<'USD' | 'ARS' | null>(null)
   const csvFileRef = useRef<HTMLInputElement>(null)
 
   // ── General ──────────────────────────────────────────────────────────────────
@@ -157,6 +167,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
   function handleCSVImport() {
     if (preview.length === 0) return
     importCSV(priceListId, preview)
+    if (detectedCurrency) updatePriceList(priceListId, { currency: detectedCurrency })
     onClose()
   }
 
@@ -170,6 +181,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
       setCsvText(text)
       const parsed = parseCSV(text)
       setPreview(parsed)
+      setDetectedCurrency(detectCsvCurrency(parsed))
     }
     reader.readAsText(file, 'UTF-8')
   }
@@ -306,7 +318,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
 
               <textarea
                 value={csvText}
-                onChange={e => { setCsvText(e.target.value); setPreview([]) }}
+                onChange={e => { setCsvText(e.target.value); setPreview([]); setDetectedCurrency(null) }}
                 rows={5}
                 placeholder={'codigo,nombre,categoria,precio,moneda\nMGV110F,Mixer vertical 110F,Mixer / Unifeed,29000,USD'}
                 className="w-full bg-white border border-[#E2E8F0] rounded-lg text-[#0F172A] text-[12px] px-3 py-2 outline-none focus:border-[#22C55E] placeholder:text-[#94A3B8] resize-none mb-3 font-mono"
@@ -314,8 +326,15 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
 
               {preview.length > 0 && (
                 <div className="mb-3 p-3 bg-[#F0FDF4] border border-[#22C55E]/30 rounded-lg">
-                  <div className="text-[11px] text-[#22C55E] font-semibold mb-2">
-                    ✓ {preview.length} productos listos para importar
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[11px] text-[#22C55E] font-semibold">
+                      ✓ {preview.length} productos listos para importar
+                    </div>
+                    {detectedCurrency && (
+                      <div className="text-[10px] font-medium text-[#3B82F6] bg-[#EFF6FF] border border-[#BFDBFE] px-2 py-0.5 rounded-full">
+                        Moneda detectada: {detectedCurrency}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {preview.slice(0, 5).map((r, i) => (
@@ -346,7 +365,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
           )}
           {tab === 'csv' && (
             preview.length === 0
-              ? <Button variant="secondary" className="flex-1" onClick={() => setPreview(parseCSV(csvText))} disabled={!csvText.trim()}>Previsualizar</Button>
+              ? <Button variant="secondary" className="flex-1" onClick={() => { const p = parseCSV(csvText); setPreview(p); setDetectedCurrency(detectCsvCurrency(p)) }} disabled={!csvText.trim()}>Previsualizar</Button>
               : <Button variant="primary" className="flex-1" onClick={handleCSVImport}>Importar {preview.length} productos</Button>
           )}
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>

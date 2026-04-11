@@ -141,11 +141,11 @@ function DataSync({ userId }: { userId: string }) {
             crmStore.hydrate(followUps)
           }),
 
-        // Catalog: price_lists (user's own + global GEA) + products + options
+        // Catalog: price_lists (user's own only) + products + options
         supabase
           .from('price_lists')
           .select('*')
-          .or(`user_id.eq.${userId},user_id.is.null`)
+          .eq('user_id', userId)
           .then(async ({ data: plData }) => {
             if (cancelled || !plData?.length) return
             const priceLists: PriceList[] = plData.map((row: any) => ({
