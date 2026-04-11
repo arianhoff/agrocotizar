@@ -209,8 +209,12 @@ function DataSync({ userId }: { userId: string }) {
     load()
 
     // Re-sync when user switches back to the tab/app
+    // visibilitychange covers desktop; pageshow + focus cover iOS Safari
     const onVisible = () => { if (!document.hidden) load() }
+    const onFocus   = () => load()
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pageshow', onFocus)
+    window.addEventListener('focus', onFocus)
 
     // Expose manual trigger (e.g. from CatalogPage refresh button)
     dataSyncBus.trigger = load
@@ -218,6 +222,8 @@ function DataSync({ userId }: { userId: string }) {
     return () => {
       cancelled = true
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pageshow', onFocus)
+      window.removeEventListener('focus', onFocus)
     }
   }, [userId])  // Re-run only when userId changes (i.e., different account)
 
