@@ -187,17 +187,17 @@ export const useCatalogStore = create<CatalogStore>()(
       },
 
       addOption: (productId, option) => {
+        const newOpt: ProductOption = {
+          ...option,
+          id: uid(),
+          product_id: productId,
+        }
         set(s => {
           const existing = s.options[productId] ?? []
-          const newOpt: ProductOption = {
-            ...option,
-            id: uid(),
-            product_id: productId,
-          }
-          // Always sync parent product first to avoid FK violation
-          syncOption(newOpt)  // syncOption always syncs parent product first
           return { options: { ...s.options, [productId]: [...existing, newOpt] } }
         })
+        // Sync AFTER set() so getState() reflects the new option's product
+        syncOption(newOpt)
       },
 
       updateOptionPrice: (productId, optionName, newPrice) => {
@@ -253,13 +253,16 @@ export const useCatalogStore = create<CatalogStore>()(
           currency: r.currency,
           description: r.description,
         }))
+        // Capture old IDs before mutating state so we can target the DELETE precisely.
+        // Using DELETE by specific old IDs (not by price_list_id) prevents accidentally
+        // deleting products that a concurrent syncProduct call may have just inserted.
+        const oldProductIds = get().products
+          .filter(p => p.price_list_id === priceListId)
+          .map(p => p.id)
+        const oldProductIdSet = new Set(oldProductIds)
         set(s => {
-          // Collect IDs of replaced products so we can drop their orphaned options
-          const replacedIds = new Set(
-            s.products.filter(p => p.price_list_id === priceListId).map(p => p.id)
-          )
           const cleanOptions = Object.fromEntries(
-            Object.entries(s.options).filter(([pid]) => !replacedIds.has(pid))
+            Object.entries(s.options).filter(([pid]) => !oldProductIdSet.has(pid))
           )
           return {
             products: [
@@ -269,21 +272,25 @@ export const useCatalogStore = create<CatalogStore>()(
             options: cleanOptions,
           }
         })
-        // Remove old products from Supabase, insert new ones
-        supabase.from('products').delete().eq('price_list_id', priceListId).then(() => {
-          if (newProducts.length) {
-            supabase.from('products').insert(newProducts.map(p => ({
-              id: p.id,
-              price_list_id: p.price_list_id,
-              code: p.code,
-              name: p.name,
-              description: p.description ?? null,
-              category: p.category,
-              base_price: p.base_price,
-              currency: p.currency,
-            }))).then()
-          }
-        })
+        // Delete only the specific old products, then upsert new ones.
+        // Using upsert (not insert) in case syncProduct already inserted some of these.
+        const upsertPayload = newProducts.map(p => ({
+          id: p.id,
+          price_list_id: p.price_list_id,
+          code: p.code,
+          name: p.name,
+          description: p.description ?? null,
+          category: p.category,
+          base_price: p.base_price,
+          currency: p.currency,
+        }))
+        if (oldProductIds.length) {
+          supabase.from('products').delete().in('id', oldProductIds).then(() => {
+            if (newProducts.length) supabase.from('products').upsert(upsertPayload).then()
+          })
+        } else if (newProducts.length) {
+          supabase.from('products').upsert(upsertPayload).then()
+        }
       },
 
       addPaymentCondition: (priceListId, template) => {
