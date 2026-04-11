@@ -73,17 +73,11 @@ function maxSit(periodos: DeudorPeriodo[]): SituacionCode {
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 async function bcraFetch(path: string): Promise<Response> {
-  // Try direct browser fetch first, fall back to our proxy if blocked/error
-  const direct = `https://api.bcra.gob.ar${path}`
-  const proxy  = `/api/deudas?cuit=${path.split('/').pop()}${path.includes('Historicas') ? '&historicas=true' : ''}`
-  try {
-    const res = await fetch(direct, { headers: { Accept: 'application/json' } })
-    if (res.ok || res.status === 404) return res
-    // Non-ok and non-404 (e.g. 400, 403) → try proxy
-    return fetch(proxy, { headers: { Accept: 'application/json' } })
-  } catch {
-    return fetch(proxy, { headers: { Accept: 'application/json' } })
-  }
+  // Direct browser fetch only — proxy (Vercel) is blocked by BCRA
+  return fetch(`https://api.bcra.gob.ar${path}`, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(8000),
+  })
 }
 
 async function fetchBCRA(cuit: string): Promise<
