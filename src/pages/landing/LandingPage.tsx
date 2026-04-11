@@ -86,13 +86,7 @@ function Testimonial({ name, role, company, text, delay = 0 }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export function LandingPage({ onLogin }: { onLogin: () => void }) {
   const [mobileMenu, setMobileMenu] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  const [currency, setCurrency] = useState<'USD' | 'ARS'>('USD')
 
   useEffect(() => {
     if (!mobileMenu) return
@@ -100,6 +94,12 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
     window.addEventListener('scroll', close, { passive: true })
     return () => window.removeEventListener('scroll', close)
   }, [mobileMenu])
+
+  function scrollTo(id: string) {
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
+    setMobileMenu(false)
+  }
 
   const FEATURES = [
     { icon: Zap,       title: 'Asistente IA',           desc: 'Dictá o escribí el pedido y la IA completa toda la cotización: cliente, equipos, precios y condición de pago en segundos.',  color: 'bg-[#7C3AED]' },
@@ -111,73 +111,85 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
   ]
 
   const NAV_LINKS = [
-    { href: '#features', label: 'Funciones' },
-    { href: '#how',      label: 'Cómo funciona' },
-    { href: '#pricing',  label: 'Precios' },
+    { id: 'features', label: 'Funciones' },
+    { id: 'how',      label: 'Cómo funciona' },
+    { id: 'pricing',  label: 'Precios' },
   ]
 
   return (
     <div className="min-h-screen bg-[#0F1120] text-white overflow-x-hidden">
 
-      {/* ─── Navbar flotante ──────────────────────────────────────────────────── */}
-      <header
-        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-        style={{
-          background: scrolled ? 'rgba(15,17,32,0.92)' : 'transparent',
-          backdropFilter: scrolled ? 'blur(16px)' : 'none',
-          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
-          boxShadow: scrolled ? '0 4px 32px rgba(0,0,0,0.4)' : 'none',
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="text-[20px] font-bold tracking-tight shrink-0">
-            Cotiz<span className="text-[#22C55E]">agro</span>
+      {/* ─── Navbar flotante (pill) ───────────────────────────────────────────── */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-5xl">
+        <nav
+          className="flex items-center h-14 px-3 rounded-full border border-white/10 shadow-2xl shadow-black/50"
+          style={{ background: 'rgba(18,21,38,0.96)', backdropFilter: 'blur(20px)' }}
+        >
+          {/* Logo */}
+          <div className="flex items-center gap-2 pl-2 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#22C55E] to-[#16A34A] flex items-center justify-center">
+              <Tractor size={14} className="text-white" />
+            </div>
+            <span className="text-[15px] font-bold tracking-tight">
+              Cotiz<span className="text-[#22C55E]">agro</span>
+            </span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-7 text-[13px] text-white/50">
+          {/* Links — desktop */}
+          <div className="hidden md:flex items-center gap-1 mx-auto">
             {NAV_LINKS.map(l => (
-              <a key={l.href} href={l.href} className="hover:text-white transition-colors">{l.label}</a>
+              <button
+                key={l.id}
+                onClick={() => scrollTo(l.id)}
+                className="px-4 py-2 rounded-full text-[13px] text-white/55 hover:text-white hover:bg-white/[0.07] transition-all cursor-pointer"
+              >
+                {l.label}
+              </button>
             ))}
-          </nav>
+          </div>
 
-          <div className="flex items-center gap-2">
+          {/* Right side */}
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             <button
               onClick={onLogin}
-              className="hidden sm:flex items-center gap-1.5 text-[13px] text-white/60 hover:text-white px-3 py-2 transition-colors cursor-pointer"
+              className="hidden sm:block text-[13px] text-white/55 hover:text-white px-3 py-2 rounded-full hover:bg-white/[0.07] transition-all cursor-pointer"
             >
               Ingresar
             </button>
             <button
               onClick={onLogin}
-              className="flex items-center gap-1.5 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-semibold px-4 py-2 rounded-lg transition-all cursor-pointer shadow-lg shadow-[#22C55E]/20 shrink-0"
+              className="flex items-center gap-1.5 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-semibold px-4 py-2 rounded-full transition-all cursor-pointer shadow-lg shadow-[#22C55E]/25"
             >
-              Empezar gratis <ArrowRight size={13} />
+              Empezar gratis
             </button>
             <button
               className="md:hidden p-2 text-white/50 hover:text-white cursor-pointer transition-colors"
               onClick={() => setMobileMenu(v => !v)}
               aria-label="Menú"
             >
-              {mobileMenu ? <X size={20} /> : <Menu size={20} />}
+              {mobileMenu ? <X size={18} /> : <Menu size={18} />}
             </button>
           </div>
-        </div>
+        </nav>
 
+        {/* Mobile menu */}
         {mobileMenu && (
-          <div className="md:hidden border-t border-white/[0.06] bg-[#0F1120] px-4 py-4 flex flex-col gap-1">
+          <div
+            className="md:hidden mt-2 rounded-2xl border border-white/10 px-3 py-3 flex flex-col gap-1 shadow-2xl shadow-black/50"
+            style={{ background: 'rgba(18,21,38,0.97)', backdropFilter: 'blur(20px)' }}
+          >
             {NAV_LINKS.map(l => (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={() => setMobileMenu(false)}
-                className="block px-3 py-2.5 text-[15px] text-white/70 hover:text-white rounded-lg hover:bg-white/[0.05] transition-all"
+              <button
+                key={l.id}
+                onClick={() => scrollTo(l.id)}
+                className="block w-full text-left px-4 py-3 text-[15px] text-white/70 hover:text-white rounded-xl hover:bg-white/[0.05] transition-all cursor-pointer"
               >
                 {l.label}
-              </a>
+              </button>
             ))}
           </div>
         )}
-      </header>
+      </div>
 
       {/* ─── Hero ─────────────────────────────────────────────────────────────── */}
       <section className="relative pt-32 sm:pt-36 md:pt-40 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden">
@@ -224,12 +236,12 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
             >
               Empezar gratis <ArrowRight size={16} />
             </button>
-            <a
-              href="#how"
-              className="flex items-center justify-center gap-2 text-white/50 hover:text-white text-[14px] font-medium px-6 py-4 rounded-xl border border-white/10 hover:border-white/20 transition-all"
+            <button
+              onClick={() => scrollTo('how')}
+              className="flex items-center justify-center gap-2 text-white/50 hover:text-white text-[14px] font-medium px-6 py-4 rounded-xl border border-white/10 hover:border-white/20 transition-all cursor-pointer"
             >
               Ver cómo funciona <ChevronDown size={14} />
-            </a>
+            </button>
           </div>
 
           {/* Stats */}
@@ -499,76 +511,179 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
 
       {/* ─── Pricing ──────────────────────────────────────────────────────────── */}
       <section id="pricing" className="py-16 sm:py-20 md:py-24 px-4 sm:px-6 border-t border-white/[0.05]">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <Reveal>
-            <div className="text-center mb-12">
-              <div className="text-[11px] font-bold tracking-widest uppercase text-[#22C55E] mb-3">Precios</div>
-              <h2 className="text-[28px] sm:text-[36px] md:text-[40px] font-bold text-white mb-3">
-                Simple y transparente
+            <div className="text-center mb-10">
+              <div className="text-[11px] font-bold tracking-widest uppercase text-[#22C55E] mb-3">Planes</div>
+              <h2 className="text-[28px] sm:text-[36px] md:text-[42px] font-bold text-white mb-3">
+                El plan justo para tu operación
               </h2>
-              <p className="text-[14px] text-white/40">Sin contratos. Sin sorpresas. Cancelás cuando querés.</p>
+              <p className="text-[14px] text-white/40 mb-7">Sin contratos. Cancelás cuando querés. Empezá gratis.</p>
+
+              {/* Toggle USD / ARS */}
+              <div className="inline-flex items-center rounded-full p-1 bg-white/[0.06] border border-white/[0.08]">
+                {(['USD', 'ARS'] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setCurrency(c)}
+                    className={`px-5 py-1.5 rounded-full text-[13px] font-semibold transition-all cursor-pointer ${
+                      currency === c
+                        ? 'bg-white text-[#0F1120] shadow'
+                        : 'text-white/45 hover:text-white'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              {currency === 'ARS' && (
+                <p className="text-[11px] text-white/25 mt-2">Precio referencial · cotización dólar blue aproximada</p>
+              )}
             </div>
           </Reveal>
 
-          <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
-            <Reveal>
-              <div className="h-full p-7 rounded-2xl bg-white/[0.03] border border-white/[0.08]">
-                <div className="text-[13px] font-semibold text-white/50 mb-1">Básico</div>
-                <div className="text-[44px] font-black text-white leading-none mb-1">Gratis</div>
-                <div className="text-[12px] text-white/30 mb-7">Para empezar sin riesgos</div>
-                <div className="space-y-3 mb-8">
-                  {[
-                    'Cotizaciones ilimitadas',
-                    'Asistente IA incluido',
-                    '1 lista de precios',
-                    'Gestión de clientes',
-                    'Seguimiento CRM básico',
-                  ].map(f => (
-                    <div key={f} className="flex items-center gap-2.5 text-[13px] text-white/60">
-                      <Check size={13} className="text-[#22C55E] shrink-0" /> {f}
-                    </div>
-                  ))}
-                </div>
-                <button onClick={onLogin}
-                  className="w-full py-3 rounded-xl border border-white/15 text-white text-[14px] font-semibold hover:bg-white/[0.05] transition-all cursor-pointer">
-                  Empezar gratis
-                </button>
-              </div>
-            </Reveal>
+          {(() => {
+            const ARS_RATE = 1250
+            const fmt = (usd: number) =>
+              currency === 'USD'
+                ? { price: `$${usd}`, unit: 'USD / mes' }
+                : usd === 0
+                ? { price: '$0', unit: '' }
+                : { price: `$${(usd * ARS_RATE).toLocaleString('es-AR')}`, unit: 'ARS / mes' }
 
-            <Reveal delay={100}>
-              <div className="relative h-full p-7 rounded-2xl bg-gradient-to-b from-[#22C55E]/12 to-[#22C55E]/3 border border-[#22C55E]/35 shadow-xl shadow-[#22C55E]/10">
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#22C55E] rounded-full text-[11px] font-bold text-white whitespace-nowrap tracking-wide">
-                  MÁS POPULAR
-                </div>
-                <div className="text-[13px] font-semibold text-[#22C55E] mb-1">Pro</div>
-                <div className="flex items-end gap-1.5 mb-1">
-                  <span className="text-[44px] font-black text-white leading-none">$15</span>
-                  <span className="text-[14px] text-white/40 mb-1.5">USD / mes</span>
-                </div>
-                <div className="text-[12px] text-white/30 mb-7">Por vendedor · cancelás cuando querés</div>
-                <div className="space-y-3 mb-8">
-                  {[
-                    'Todo lo del plan básico',
-                    'Listas de precios ilimitadas',
-                    'Importación PDF ilimitada',
-                    'Exportación a PDF con tu logo',
-                    'Múltiples vendedores',
-                    'Soporte prioritario',
-                    'Nuevas funciones primero',
-                  ].map(f => (
-                    <div key={f} className="flex items-center gap-2.5 text-[13px] text-white/75">
-                      <Check size={13} className="text-[#22C55E] shrink-0" /> {f}
+            const plans: Array<{
+              name: string; accent: boolean; badge?: string
+              price: string; unit: string; sub: string
+              features: { text: string; inc: boolean }[]
+              cta: string; ctaStyle: string
+            }> = [
+              {
+                name: 'Gratis',
+                accent: false,
+                ...fmt(0),
+                sub: 'Para dar los primeros pasos',
+                features: [
+                  { text: 'Hasta 10 cotizaciones / mes', inc: true },
+                  { text: 'Asistente IA (10 consultas)', inc: true },
+                  { text: '1 lista de precios', inc: true },
+                  { text: 'PDF básico sin logo', inc: true },
+                  { text: 'Verificación BCRA', inc: true },
+                  { text: 'Gestión de clientes básica', inc: true },
+                  { text: 'Soporte por email', inc: true },
+                  { text: 'PDF con tu logo', inc: false },
+                ],
+                cta: 'Comenzar ahora',
+                ctaStyle: 'border',
+              },
+              {
+                name: 'Vendedores',
+                accent: true,
+                badge: 'Más popular',
+                ...fmt(9),
+                sub: 'Por vendedor · facturación mensual',
+                features: [
+                  { text: 'Cotizaciones ilimitadas', inc: true },
+                  { text: 'IA ilimitada + importación PDF', inc: true },
+                  { text: 'Listas de precios ilimitadas', inc: true },
+                  { text: 'PDF profesional con tu logo', inc: true },
+                  { text: 'Verificación BCRA ilimitada', inc: true },
+                  { text: 'CRM y seguimiento automático', inc: true },
+                  { text: 'Envío por WhatsApp', inc: true },
+                  { text: 'Soporte por WhatsApp', inc: true },
+                ],
+                cta: '14 días gratis · sin tarjeta',
+                ctaStyle: 'solid',
+              },
+              {
+                name: 'Concesionarios',
+                accent: false,
+                ...fmt(29),
+                sub: 'Hasta 10 vendedores incluidos',
+                features: [
+                  { text: 'Todo lo del plan Vendedores', inc: true },
+                  { text: 'Hasta 10 usuarios simultáneos', inc: true },
+                  { text: 'Dashboard gerencial', inc: true },
+                  { text: 'Reportes de conversión y ventas', inc: true },
+                  { text: 'Múltiples marcas y sucursales', inc: true },
+                  { text: 'Logo y colores propios en PDFs', inc: true },
+                  { text: 'Nuevas funciones anticipadas', inc: true },
+                  { text: 'Soporte prioritario 24 hs', inc: true },
+                ],
+                cta: 'Comenzar ahora',
+                ctaStyle: 'border',
+              },
+            ]
+
+            return (
+              <div className="grid md:grid-cols-3 gap-4 items-stretch">
+                {plans.map((plan, i) => (
+                  <Reveal key={plan.name} delay={i * 80}>
+                    <div
+                      className="relative h-full flex flex-col p-7 rounded-2xl border transition-all"
+                      style={plan.accent ? {
+                        background: 'linear-gradient(160deg, rgba(34,197,94,0.13) 0%, rgba(34,197,94,0.04) 100%)',
+                        borderColor: 'rgba(34,197,94,0.42)',
+                        boxShadow: '0 20px 60px rgba(34,197,94,0.10)',
+                      } : {
+                        background: 'rgba(255,255,255,0.03)',
+                        borderColor: 'rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      {plan.badge && (
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#22C55E] rounded-full text-[11px] font-bold text-white whitespace-nowrap tracking-wider uppercase">
+                          {plan.badge}
+                        </div>
+                      )}
+
+                      {/* Header */}
+                      <div className="mb-6">
+                        <div className={`text-[11px] font-bold tracking-widest uppercase mb-3 ${plan.accent ? 'text-[#22C55E]' : 'text-white/35'}`}>
+                          {plan.name}
+                        </div>
+                        <div className="flex items-end gap-1.5 mb-1">
+                          <span className="text-[44px] font-black text-white leading-none">{plan.price}</span>
+                          {plan.unit && <span className="text-[12px] text-white/40 mb-2">{plan.unit}</span>}
+                        </div>
+                        <div className="text-[12px] text-white/35 mt-1">{plan.sub}</div>
+                      </div>
+
+                      {/* Features */}
+                      <div className="flex-1 space-y-3 mb-8">
+                        {plan.features.map(f => (
+                          <div key={f.text} className="flex items-start gap-2.5">
+                            {f.inc
+                              ? <Check size={13} className={`shrink-0 mt-0.5 ${plan.accent ? 'text-[#22C55E]' : 'text-white/40'}`} />
+                              : <span className="w-[13px] h-[13px] shrink-0 mt-0.5 flex items-center justify-center text-white/20 text-[10px] leading-none">—</span>
+                            }
+                            <span className={`text-[13px] ${f.inc ? (plan.accent ? 'text-white/80' : 'text-white/55') : 'text-white/25 line-through'}`}>
+                              {f.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* CTA */}
+                      {plan.ctaStyle === 'solid'
+                        ? <button onClick={onLogin} className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-bold transition-all cursor-pointer shadow-lg shadow-[#22C55E]/30">
+                            {plan.cta}
+                          </button>
+                        : <button onClick={onLogin} className="w-full py-3 rounded-xl border border-white/15 text-white/75 text-[13px] font-semibold hover:bg-white/[0.06] hover:text-white transition-all cursor-pointer">
+                            {plan.cta}
+                          </button>
+                      }
                     </div>
-                  ))}
-                </div>
-                <button onClick={onLogin}
-                  className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-bold transition-all cursor-pointer shadow-lg shadow-[#22C55E]/30">
-                  14 días gratis sin tarjeta
-                </button>
+                  </Reveal>
+                ))}
               </div>
-            </Reveal>
-          </div>
+            )
+          })()}
+
+          {/* Nota debajo */}
+          <Reveal delay={280}>
+            <p className="text-center text-[12px] text-white/25 mt-8">
+              Todos los planes incluyen actualizaciones automáticas · Soporte en español · Datos almacenados en Argentina
+            </p>
+          </Reveal>
         </div>
       </section>
 
