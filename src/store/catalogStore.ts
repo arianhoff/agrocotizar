@@ -340,11 +340,29 @@ export const useCatalogStore = create<CatalogStore>()(
       },
 
       syncAll: async () => {
-        const { products, options } = get()
-        // Products first (options have FK dependency on products)
-        await Promise.allSettled(products.map(syncProduct))
-        const allOpts = Object.values(options).flat()
-        await Promise.allSettled(allOpts.map(syncOption))
+        // Verify we have a valid session before pushing anything
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { console.warn('[catalog] syncAll: no valid session, skipping'); return }
+
+        const { priceLists, products, options } = get()
+
+        // Only sync price lists that belong to this user (skip legacy/global lists)
+        const ownLists = priceLists.filter(pl =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pl.id)
+        )
+        await Promise.allSettled(ownLists.map(syncPriceList))
+
+        // Only sync products from those lists
+        const ownListIds = new Set(ownLists.map(pl => pl.id))
+        const ownProducts = products.filter(p => ownListIds.has(p.price_list_id))
+        await Promise.allSettled(ownProducts.map(syncProduct))
+
+        // Only sync options for those products
+        const ownProductIds = new Set(ownProducts.map(p => p.id))
+        const ownOpts = Object.entries(options)
+          .filter(([pid]) => ownProductIds.has(pid))
+          .flatMap(([, opts]) => opts)
+        await Promise.allSettled(ownOpts.map(syncOption))
       },
 
       clear: () => set({ ...initialState }),
