@@ -199,7 +199,9 @@ export const useCatalogStore = create<CatalogStore>()(
             id: uid(),
             product_id: productId,
           }
-          syncOption(newOpt)
+          // Always sync parent product first to avoid FK violation
+          const product = s.products.find(p => p.id === productId)
+          ;(product ? syncProduct(product) : Promise.resolve()).then(() => syncOption(newOpt))
           return { options: { ...s.options, [productId]: [...existing, newOpt] } }
         })
       },
