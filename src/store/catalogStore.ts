@@ -71,9 +71,9 @@ const initialState = {
 async function syncPriceList(pl: PriceList) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
-  supabase.from('price_lists').upsert({
+  const { error } = await supabase.from('price_lists').upsert({
     id: pl.id,
-    user_id: user.id,       // required for RLS policies (INSERT / UPDATE)
+    user_id: user.id,
     brand: pl.brand,
     name: pl.name,
     currency: pl.currency,
@@ -83,11 +83,12 @@ async function syncPriceList(pl: PriceList) {
     iva_included: pl.iva_included,
     iva_rate: pl.iva_rate,
     payment_conditions: pl.payment_conditions ?? [],
-  }).then()
+  })
+  if (error) console.error('[catalog] syncPriceList error:', error.message, error.details)
 }
 
-function syncProduct(p: Product) {
-  supabase.from('products').upsert({
+async function syncProduct(p: Product) {
+  const { error } = await supabase.from('products').upsert({
     id: p.id,
     price_list_id: p.price_list_id,
     code: p.code,
@@ -96,18 +97,20 @@ function syncProduct(p: Product) {
     category: p.category,
     base_price: p.base_price,
     currency: p.currency,
-  }).then()
+  })
+  if (error) console.error('[catalog] syncProduct error:', error.message, p.id)
 }
 
-function syncOption(opt: ProductOption) {
-  supabase.from('product_options').upsert({
+async function syncOption(opt: ProductOption) {
+  const { error } = await supabase.from('product_options').upsert({
     id: opt.id,
     product_id: opt.product_id,
     name: opt.name,
     price: opt.price,
     currency: opt.currency ?? 'USD',
     requires_commission: opt.requires_commission,
-  }).then()
+  })
+  if (error) console.error('[catalog] syncOption error:', error.message, opt.id)
 }
 
 export const useCatalogStore = create<CatalogStore>()(
