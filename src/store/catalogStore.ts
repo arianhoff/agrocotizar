@@ -380,7 +380,7 @@ export const useCatalogStore = create<CatalogStore>()(
     }),
     {
       name: 'agrocotizar-catalog',
-      version: 5,
+      version: 6,
       migrate: (state: any, version: number) => {
         const isUUID = (id: string) =>
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -430,6 +430,20 @@ export const useCatalogStore = create<CatalogStore>()(
             .map(([pid, opts]) => [
               pid,
               (opts as any[]).filter((o: any) => isUUID(o.product_id)),
+            ])
+            .filter(([, opts]) => (opts as any[]).length > 0)
+        )
+
+        // v6: purge orphaned options — options whose product_id exists as a UUID
+        // but the parent product no longer exists in local state. This happens when
+        // a price list is reimported (products get new UUIDs) leaving old options
+        // behind referencing stale product IDs that are absent from both local and DB.
+        const localProductIds = new Set(products.map((p: any) => p.id))
+        options = Object.fromEntries(
+          Object.entries(options)
+            .map(([pid, opts]) => [
+              pid,
+              (opts as any[]).filter((o: any) => localProductIds.has(o.product_id)),
             ])
             .filter(([, opts]) => (opts as any[]).length > 0)
         )
