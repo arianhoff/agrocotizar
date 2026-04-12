@@ -1,0 +1,486 @@
+import { useState, useEffect } from 'react'
+import { CreditCard, Check, Star, AlertTriangle, Clock, Loader2, ExternalLink, Zap } from 'lucide-react'
+import { Button } from '@/components/ui'
+import { useSubscriptionStore, PLAN_NAMES, type Plan } from '@/store/subscriptionStore'
+import { supabase } from '@/lib/supabase/client'
+
+// ─── Plan catalogue (must match api/mercadopago.js) ───────────────────────────
+
+const PLANS_INFO: Array<{
+  id:      Exclude<Plan, 'free'>
+  name:    string
+  usd:     number
+  ars:     number
+  badge?:  string
+  accent:  boolean
+  features: string[]
+  cta:     string
+}> = [
+  {
+    id:      'vendedores',
+    name:    'Vendedores',
+    usd:     9,
+    ars:     11250,
+    badge:   'Más popular',
+    accent:  true,
+    features: [
+      'Cotizaciones ilimitadas',
+      'IA ilimitada + importación PDF',
+      'Listas de precios ilimitadas',
+      'PDF profesional con tu logo',
+      'Verificación BCRA ilimitada',
+      'CRM y seguimiento automático',
+      'Soporte por WhatsApp',
+    ],
+    cta: '14 días gratis · sin tarjeta',
+  },
+  {
+    id:      'concesionarios',
+    name:    'Concesionarios',
+    usd:     29,
+    ars:     36250,
+    accent:  false,
+    features: [
+      'Todo lo del plan Vendedores',
+      'Hasta 10 usuarios simultáneos',
+      'Dashboard gerencial',
+      'Reportes de conversión y ventas',
+      'Múltiples marcas y sucursales',
+      'Logo y colores propios en PDFs',
+      'Soporte prioritario 24 hs',
+    ],
+    cta: 'Contratar plan',
+  },
+]
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function formatDate(iso: string | null) {
+  if (!iso) return null
+  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+
+function daysUntil(iso: string | null) {
+  if (!iso) return 0
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000))
+}
+
+async function getToken() {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.access_token ?? ''
+}
+
+// ─── Current plan card ────────────────────────────────────────────────────────
+
+function CurrentPlanCard() {
+  const { plan, planExpiresAt, trialEndsAt, isActive, inTrial } = useSubscriptionStore()
+
+  if (plan === 'free') {
+    return (
+      <div className="flex items-center gap-4 p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
+        <div className="w-10 h-10 rounded-lg bg-[#F1F5F9] flex items-center justify-center shrink-0">
+          <CreditCard size={18} className="text-[#94A3B8]" />
+        </div>
+        <div className="flex-1">
+          <div className="text-[14px] font-semibold text-[#0F172A]">Plan Gratis</div>
+          <div className="text-[12px] text-[#94A3B8] mt-0.5">
+            10 cotizaciones · 10 consultas IA · 1 lista de precios
+          </div>
+        </div>
+        <span className="text-[10px] font-bold text-[#94A3B8] bg-[#F1F5F9] border border-[#E2E8F0] px-2.5 py-1 rounded-full uppercase tracking-wider">
+          Gratis
+        </span>
+      </div>
+    )
+  }
+
+  const planName = PLAN_NAMES[plan]
+  const activeDate = inTrial ? trialEndsAt : planExpiresAt
+  const daysLeft  = daysUntil(activeDate)
+  const expiring  = daysLeft <= 7 && daysLeft > 0
+
+  return (
+    <div className={`flex items-center gap-4 p-4 rounded-xl border ${
+      isActive
+        ? 'bg-[#F0FDF4] border-[#22C55E]/30'
+        : 'bg-[#FFF8F8] border-[#EF4444]/20'
+    }`}>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+        isActive ? 'bg-[#22C55E]/15' : 'bg-[#EF4444]/10'
+      }`}>
+        {isActive
+          ? <Star size={18} className="text-[#22C55E]" />
+          : <AlertTriangle size={18} className="text-[#EF4444]" />
+        }
+      </div>
+      <div className="flex-1">
+        <div className="text-[14px] font-semibold text-[#0F172A]">Plan {planName}</div>
+        {isActive && inTrial && (
+          <div className="text-[12px] text-[#F59E0B] mt-0.5 flex items-center gap-1">
+            <Clock size={11} />
+            Prueba gratuita · {daysLeft} día{daysLeft !== 1 ? 's' : ''} restante{daysLeft !== 1 ? 's' : ''}
+            {activeDate ? ` (vence ${formatDate(activeDate)})` : ''}
+          </div>
+        )}
+        {isActive && !inTrial && (
+          <div className={`text-[12px] mt-0.5 flex items-center gap-1 ${
+            expiring ? 'text-[#F59E0B]' : 'text-[#22C55E]'
+          }`}>
+            <Clock size={11} />
+            {expiring
+              ? `Vence en ${daysLeft} día${daysLeft !== 1 ? 's' : ''} · ${formatDate(activeDate)}`
+              : `Activo hasta ${formatDate(activeDate)}`
+            }
+          </div>
+        )}
+        {!isActive && (
+          <div className="text-[12px] text-[#EF4444] mt-0.5">
+            Suscripción vencida · Renovar para continuar usando todas las funciones
+          </div>
+        )}
+      </div>
+      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border ${
+        isActive
+          ? 'text-[#22C55E] bg-[#F0FDF4] border-[#22C55E]/20'
+          : 'text-[#EF4444] bg-[#FFF8F8] border-[#EF4444]/20'
+      }`}>
+        {isActive ? 'Activo' : 'Vencido'}
+      </span>
+    </div>
+  )
+}
+
+// ─── Payment result banner ─────────────────────────────────────────────────────
+
+function PaymentBanner({ result }: { result: 'success' | 'failure' | 'pending' }) {
+  if (result === 'success') return (
+    <div className="flex items-center gap-3 p-4 bg-[#F0FDF4] border border-[#22C55E]/30 rounded-xl">
+      <Check size={18} className="text-[#22C55E] shrink-0" />
+      <div>
+        <div className="text-[14px] font-semibold text-[#16A34A]">¡Pago confirmado!</div>
+        <div className="text-[12px] text-[#22C55E]">Tu plan fue activado. Podés empezar a usar todas las funciones.</div>
+      </div>
+    </div>
+  )
+  if (result === 'pending') return (
+    <div className="flex items-center gap-3 p-4 bg-[#FFFBEB] border border-[#F59E0B]/30 rounded-xl">
+      <Clock size={18} className="text-[#F59E0B] shrink-0" />
+      <div>
+        <div className="text-[14px] font-semibold text-[#92400E]">Pago pendiente de acreditación</div>
+        <div className="text-[12px] text-[#F59E0B]">Tu plan se activará automáticamente cuando Mercado Pago confirme el pago.</div>
+      </div>
+    </div>
+  )
+  return (
+    <div className="flex items-center gap-3 p-4 bg-[#FFF8F8] border border-[#EF4444]/20 rounded-xl">
+      <AlertTriangle size={18} className="text-[#EF4444] shrink-0" />
+      <div>
+        <div className="text-[14px] font-semibold text-[#EF4444]">El pago no pudo procesarse</div>
+        <div className="text-[12px] text-[#94A3B8]">Podés intentarlo de nuevo. Si el problema persiste, contactanos por WhatsApp.</div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Plan card ────────────────────────────────────────────────────────────────
+
+function PlanCard({
+  plan,
+  currentPlan,
+  isActive,
+  onTrial,
+  onCheckout,
+  loading,
+}: {
+  plan:        typeof PLANS_INFO[number]
+  currentPlan: Plan
+  isActive:    boolean
+  onTrial:     (planId: Exclude<Plan, 'free'>) => void
+  onCheckout:  (planId: Exclude<Plan, 'free'>) => void
+  loading:     string | null  // planId being loaded, or null
+}) {
+  const isCurrent = currentPlan === plan.id && isActive
+  const isLoading = loading === plan.id
+
+  return (
+    <div
+      className="relative flex flex-col p-6 rounded-2xl border transition-all"
+      style={plan.accent ? {
+        background:   'linear-gradient(160deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.02) 100%)',
+        borderColor:  'rgba(34,197,94,0.35)',
+        boxShadow:    '0 8px 30px rgba(34,197,94,0.07)',
+      } : {
+        background:   'rgba(248,250,252,1)',
+        borderColor:  '#E2E8F0',
+      }}
+    >
+      {plan.badge && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#22C55E] rounded-full text-[10px] font-bold text-white whitespace-nowrap tracking-wider uppercase">
+          {plan.badge}
+        </div>
+      )}
+      {isCurrent && (
+        <div className="absolute -top-3 right-4 px-3 py-0.5 bg-[#0F172A] rounded-full text-[10px] font-bold text-white whitespace-nowrap tracking-wider uppercase">
+          Tu plan
+        </div>
+      )}
+
+      {/* Pricing */}
+      <div className="mb-5">
+        <div className={`text-[11px] font-bold tracking-widest uppercase mb-2 ${plan.accent ? 'text-[#22C55E]' : 'text-[#94A3B8]'}`}>
+          {plan.name}
+        </div>
+        <div className="flex items-end gap-1.5 mb-0.5">
+          <span className="text-[36px] font-black text-[#0F172A] leading-none">${plan.usd}</span>
+          <span className="text-[12px] text-[#94A3B8] mb-1.5">USD / mes</span>
+        </div>
+        <div className="text-[11px] text-[#94A3B8]">≈ ${plan.ars.toLocaleString('es-AR')} ARS</div>
+      </div>
+
+      {/* Features */}
+      <div className="flex-1 space-y-2.5 mb-6">
+        {plan.features.map(f => (
+          <div key={f} className="flex items-start gap-2">
+            <Check size={13} className={`shrink-0 mt-0.5 ${plan.accent ? 'text-[#22C55E]' : 'text-[#64748B]'}`} />
+            <span className="text-[12px] text-[#475569] leading-snug">{f}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      {isCurrent ? (
+        <div className="w-full py-2.5 rounded-xl border border-[#22C55E]/40 text-[13px] font-semibold text-[#22C55E] text-center bg-[#F0FDF4]">
+          Plan actual
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Trial CTA — only for vendedores if not yet tried */}
+          {plan.id === 'vendedores' && currentPlan === 'free' && (
+            <button
+              onClick={() => onTrial(plan.id)}
+              disabled={!!loading}
+              className="w-full py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#22C55E]/20"
+            >
+              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+              {isLoading ? 'Activando prueba...' : '14 días gratis · sin tarjeta'}
+            </button>
+          )}
+
+          {/* Pay CTA */}
+          <button
+            onClick={() => onCheckout(plan.id)}
+            disabled={!!loading}
+            className={`w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+              plan.id === 'vendedores' && currentPlan === 'free'
+                ? 'border border-[#22C55E]/30 text-[#22C55E] hover:bg-[#F0FDF4]'
+                : 'bg-[#22C55E] hover:bg-[#16A34A] text-white shadow-lg shadow-[#22C55E]/20'
+            }`}
+          >
+            {loading === `checkout-${plan.id}` ? <Loader2 size={14} className="animate-spin" /> : <ExternalLink size={13} />}
+            {loading === `checkout-${plan.id}`
+              ? 'Redirigiendo...'
+              : plan.id === 'vendedores' && currentPlan === 'free'
+                ? 'Pagar mensualmente'
+                : plan.cta
+            }
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function SubscriptionSection() {
+  const { plan, isActive, hydrate } = useSubscriptionStore()
+  const [loading,  setLoading]  = useState<string | null>(null)
+  const [error,    setError]    = useState<string | null>(null)
+  const [currency, setCurrency] = useState<'USD' | 'ARS'>('USD')
+
+  // Read payment result from URL params
+  const searchParams = new URLSearchParams(window.location.search)
+  const paymentResult = searchParams.get('payment') as 'success' | 'failure' | 'pending' | null
+
+  // Reload subscription state after successful payment
+  useEffect(() => {
+    if (paymentResult !== 'success') return
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return
+      supabase
+        .from('profiles')
+        .select('plan, plan_expires_at, trial_ends_at')
+        .eq('id', session.user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) hydrate(data)
+        })
+    })
+  }, [paymentResult])
+
+  async function handleTrial(planId: Exclude<Plan, 'free'>) {
+    setLoading(planId)
+    setError(null)
+    try {
+      const token = await getToken()
+      const res   = await fetch('/api/mercadopago', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ action: 'start_trial', plan: planId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'No se pudo activar el período de prueba.')
+        return
+      }
+      // Reload plan from Supabase
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan, plan_expires_at, trial_ends_at')
+        .eq('id', (await supabase.auth.getUser()).data.user!.id)
+        .single()
+      if (profile) hydrate(profile)
+    } catch {
+      setError('Error de conexión. Intentá de nuevo.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleCheckout(planId: Exclude<Plan, 'free'>) {
+    setLoading(`checkout-${planId}`)
+    setError(null)
+    try {
+      const token = await getToken()
+      const res   = await fetch('/api/mercadopago', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ action: 'create_preference', plan: planId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'No se pudo iniciar el pago.')
+        return
+      }
+      // Redirect to MP checkout
+      const dest = data.init_point ?? data.sandbox_init_point
+      if (dest) window.location.href = dest
+    } catch {
+      setError('Error de conexión. Intentá de nuevo.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start gap-3 pb-2 border-b border-[#E2E8F0]">
+        <div className="w-9 h-9 rounded-lg bg-[#F0FDF4] border border-[#22C55E]/20 flex items-center justify-center shrink-0 mt-0.5">
+          <CreditCard size={16} className="text-[#22C55E]" />
+        </div>
+        <div>
+          <div className="text-[15px] font-semibold text-[#0F172A]">Suscripción y plan</div>
+          <div className="text-[12px] text-[#94A3B8] mt-0.5">
+            Gestioná tu plan y método de pago.
+          </div>
+        </div>
+      </div>
+
+      {/* Payment result banner */}
+      {paymentResult && <PaymentBanner result={paymentResult} />}
+
+      {/* Current plan */}
+      <CurrentPlanCard />
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-[#FFF8F8] border border-[#EF4444]/20 rounded-lg text-[13px] text-[#EF4444]">
+          <AlertTriangle size={14} className="shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Currency toggle */}
+      {plan === 'free' || !isActive ? (
+        <>
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-semibold tracking-widest uppercase text-[#94A3B8]">
+              {isActive ? 'Cambiar plan' : 'Elegí un plan'}
+            </div>
+            <div className="flex items-center gap-0.5 rounded-full p-0.5 bg-[#F1F5F9] border border-[#E2E8F0]">
+              {(['USD', 'ARS'] as const).map(c => (
+                <button
+                  key={c}
+                  onClick={() => setCurrency(c)}
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                    currency === c
+                      ? 'bg-white text-[#0F172A] shadow-sm'
+                      : 'text-[#94A3B8] hover:text-[#64748B]'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {currency === 'ARS' && (
+            <p className="text-[11px] text-[#94A3B8] -mt-3">
+              Precio referencial · cotización dólar blue aproximada
+            </p>
+          )}
+
+          {/* Plan cards */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            {PLANS_INFO.map(p => (
+              <PlanCard
+                key={p.id}
+                plan={p}
+                currentPlan={plan}
+                isActive={isActive}
+                onTrial={handleTrial}
+                onCheckout={handleCheckout}
+                loading={loading}
+              />
+            ))}
+          </div>
+
+          {/* Free plan row */}
+          <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-[12px] text-[#94A3B8]">
+            Plan <span className="font-semibold text-[#64748B]">Gratis</span> incluye:{' '}
+            10 cotizaciones/mes · 10 consultas IA · 1 lista de precios · PDF básico sin logo ·
+            Verificación BCRA · Clientes básico.
+          </div>
+        </>
+      ) : (
+        /* Already on paid plan — show simple upgrade / manage options */
+        <div className="space-y-4">
+          <div className="text-[11px] font-semibold tracking-widest uppercase text-[#94A3B8]">
+            Renovar suscripción
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {PLANS_INFO.filter(p => p.id === plan || plan === 'vendedores').map(p => (
+              <PlanCard
+                key={p.id}
+                plan={p}
+                currentPlan={plan}
+                isActive={isActive}
+                onTrial={handleTrial}
+                onCheckout={handleCheckout}
+                loading={loading}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer note */}
+      <p className="text-[11px] text-[#94A3B8]">
+        Los pagos se procesan de forma segura a través de Mercado Pago.
+        Sin contratos — cancelás cuando querés.
+        Para soporte escribí a <span className="text-[#22C55E]">hola@cotizagro.com.ar</span>.
+      </p>
+    </div>
+  )
+}

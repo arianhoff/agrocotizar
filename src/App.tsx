@@ -11,6 +11,7 @@ import { useClientStore, type Client } from '@/store/clientStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useCRMStore } from '@/store/crmStore'
 import { useCatalogStore } from '@/store/catalogStore'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
 import type { FollowUp, PriceList, Product, ProductOption } from '@/types'
 
 const QuoterPage     = lazy(() => import('@/pages/quoter/QuoterPage').then(m => ({ default: m.QuoterPage })))
@@ -42,11 +43,12 @@ function ScrollToTop() {
 export const dataSyncBus = { trigger: () => {} }
 
 function DataSync({ userId }: { userId: string }) {
-  const savedQuotes = useSavedQuotesStore()
-  const clientStore = useClientStore()
-  const settingsStore = useSettingsStore()
-  const crmStore = useCRMStore()
-  const catalogStore = useCatalogStore()
+  const savedQuotes      = useSavedQuotesStore()
+  const clientStore      = useClientStore()
+  const settingsStore    = useSettingsStore()
+  const crmStore         = useCRMStore()
+  const catalogStore     = useCatalogStore()
+  const subscriptionStore = useSubscriptionStore()
 
   useEffect(() => {
     let cancelled = false
@@ -105,15 +107,20 @@ function DataSync({ userId }: { userId: string }) {
             clientStore.hydrate(clients)
           }),
 
-        // Profile / Settings
+        // Profile / Settings + Subscription
         supabase
           .from('profiles')
-          .select('settings')
+          .select('settings, plan, plan_expires_at, trial_ends_at')
           .eq('id', userId)
           .single()
           .then(({ data }) => {
-            if (cancelled || !data?.settings) return
-            settingsStore.hydrate(data.settings)
+            if (cancelled || !data) return
+            if (data.settings) settingsStore.hydrate(data.settings)
+            subscriptionStore.hydrate({
+              plan:            data.plan,
+              plan_expires_at: data.plan_expires_at,
+              trial_ends_at:   data.trial_ends_at,
+            })
           }),
 
         // CRM follow-ups
@@ -250,6 +257,7 @@ function clearAllStores() {
   useSettingsStore.getState().clear()
   useCRMStore.getState().clear()
   useCatalogStore.getState().clear()
+  useSubscriptionStore.getState().clear()
   // Clear persisted localStorage keys
   localStorage.removeItem('agrocotizar-quotes')
   localStorage.removeItem('agrocotizar-clients')

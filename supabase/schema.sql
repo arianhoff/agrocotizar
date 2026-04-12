@@ -197,6 +197,13 @@ CREATE TRIGGER profiles_updated_at   BEFORE UPDATE ON profiles   FOR EACH ROW EX
 CREATE TRIGGER clients_updated_at    BEFORE UPDATE ON clients    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER quotes_updated_at     BEFORE UPDATE ON quotes     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ─── Subscription columns (run once via SQL Editor) ─────────
+-- These extend the profiles table for Mercado Pago billing.
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS plan             text        NOT NULL DEFAULT 'free';
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS plan_expires_at  timestamptz;
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS trial_ends_at    timestamptz;
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS mp_payment_id    text;
+
 -- ─── Auto-crear profile al registrarse ───────────────────────
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$

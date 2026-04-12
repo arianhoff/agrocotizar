@@ -1,19 +1,22 @@
 import { useState, useRef } from 'react'
 import {
   User, Building2, FileText, Lock, Upload, X, Check,
-  Phone, Mail, Globe, MapPin, Hash, Banknote, Clock, ChevronRight,
+  Phone, Mail, Globe, MapPin, Hash, Banknote, Clock, ChevronRight, CreditCard,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Button, Input, Select, Textarea, FieldGroup, Label } from '@/components/ui'
 import { useSettingsStore } from '@/store/settingsStore'
 import type { SellerProfile, CompanyProfile, QuoteDefaults } from '@/store/settingsStore'
+import { SubscriptionSection } from './SubscriptionSection'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
 
 // ─── Section nav ─────────────────────────────────────────────────────────────
 const SECTIONS = [
-  { id: 'seller',   icon: User,       label: 'Vendedor',      desc: 'Tu perfil personal' },
-  { id: 'company',  icon: Building2,  label: 'Empresa',       desc: 'Datos de tu empresa' },
-  { id: 'quotes',   icon: FileText,   label: 'Cotizaciones',  desc: 'Valores por defecto' },
-  { id: 'account',  icon: Lock,       label: 'Cuenta',        desc: 'Acceso y seguridad' },
+  { id: 'seller',       icon: User,        label: 'Vendedor',       desc: 'Tu perfil personal' },
+  { id: 'company',      icon: Building2,   label: 'Empresa',        desc: 'Datos de tu empresa' },
+  { id: 'quotes',       icon: FileText,    label: 'Cotizaciones',   desc: 'Valores por defecto' },
+  { id: 'subscription', icon: CreditCard,  label: 'Suscripción',    desc: 'Plan y facturación' },
+  { id: 'account',      icon: Lock,        label: 'Cuenta',         desc: 'Acceso y seguridad' },
 ] as const
 
 type SectionId = typeof SECTIONS[number]['id']
@@ -430,8 +433,17 @@ function SectionHeader({ icon: Icon, title, desc }: { icon: React.ElementType; t
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export function SettingsPage() {
-  const store = useSettingsStore()
-  const [active, setActive] = useState<SectionId>('seller')
+  const store        = useSettingsStore()
+  const subscription = useSubscriptionStore()
+
+  // If redirected back from MP with ?section=subscription, open that tab
+  const initialSection = (() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('payment')) return 'subscription' as SectionId
+    return 'seller' as SectionId
+  })()
+
+  const [active, setActive] = useState<SectionId>(initialSection)
 
   // Local drafts (unsaved)
   const [seller,  setSeller]  = useState<SellerProfile>(() => ({ ...store.seller }))
@@ -485,6 +497,7 @@ export function SettingsPage() {
           {SECTIONS.map(s => {
             const Icon = s.icon
             const isActive = active === s.id
+            const showBadge = s.id === 'subscription' && subscription.isActive
             return (
               <button
                 key={s.id}
@@ -502,6 +515,11 @@ export function SettingsPage() {
                   <div className={`text-[13px] font-medium ${isActive ? 'text-[#16A34A]' : ''}`}>{s.label}</div>
                   <div className="text-[11px] text-[#94A3B8] truncate">{s.desc}</div>
                 </div>
+                {showBadge && (
+                  <span className="text-[9px] font-bold text-[#22C55E] bg-[#F0FDF4] border border-[#22C55E]/20 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                    Activo
+                  </span>
+                )}
                 {isActive && <ChevronRight size={14} className="text-[#22C55E] shrink-0" />}
               </button>
             )
@@ -520,12 +538,15 @@ export function SettingsPage() {
             {active === 'quotes' && (
               <QuotesSection draft={quotes} onChange={p => setQuotes(s => ({ ...s, ...p }))} />
             )}
+            {active === 'subscription' && (
+              <SubscriptionSection />
+            )}
             {active === 'account' && (
               <AccountSection />
             )}
 
-            {/* Inline save button (always visible for non-account sections) */}
-            {active !== 'account' && (
+            {/* Inline save button (only for editable sections) */}
+            {active !== 'account' && active !== 'subscription' && (
               <div className="mt-8 flex items-center justify-end gap-3">
                 {isDirty && (
                   <button onClick={handleDiscard} className="text-[12px] text-[#94A3B8] hover:text-[#64748B] cursor-pointer transition-colors">
