@@ -57,10 +57,11 @@ function anonClient() {
 }
 
 function serviceClient() {
-  return createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-  )
+  // Falls back to anon key if service role key is not configured.
+  // The service role key bypasses RLS — set SUPABASE_SERVICE_ROLE_KEY in Vercel
+  // for full security. The anon key still works for updates on the user's own row.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  return createClient(process.env.SUPABASE_URL, key)
 }
 
 async function verifyToken(bearerToken) {

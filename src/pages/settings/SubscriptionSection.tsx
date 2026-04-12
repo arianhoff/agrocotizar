@@ -318,30 +318,41 @@ export function SubscriptionSection() {
     })
   }, [paymentResult])
 
+  async function callApi(body: object): Promise<{ ok: boolean; data: any }> {
+    const token = await getToken()
+    const res   = await fetch('/api/mercadopago', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify(body),
+    })
+    // Try to parse JSON; if it fails (HTML error page from Vercel) surface the status
+    let data: any = {}
+    try { data = await res.json() } catch {
+      data = { error: `Error del servidor (HTTP ${res.status}) — revisá los logs de Vercel` }
+    }
+    return { ok: res.ok, data }
+  }
+
+  async function reloadProfile() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan, plan_expires_at, trial_ends_at')
+      .eq('id', user.id)
+      .single()
+    if (profile) hydrate(profile)
+  }
+
   async function handleTrial(planId: Exclude<Plan, 'free'>) {
     setLoading(planId)
     setError(null)
     try {
-      const token = await getToken()
-      const res   = await fetch('/api/mercadopago', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ action: 'start_trial', plan: planId }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? 'No se pudo activar el período de prueba.')
-        return
-      }
-      // Reload plan from Supabase
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('plan, plan_expires_at, trial_ends_at')
-        .eq('id', (await supabase.auth.getUser()).data.user!.id)
-        .single()
-      if (profile) hydrate(profile)
-    } catch {
-      setError('Error de conexión. Intentá de nuevo.')
+      const { ok, data } = await callApi({ action: 'start_trial', plan: planId })
+      if (!ok) { setError(data.error ?? 'No se pudo activar el período de prueba.'); return }
+      await reloadProfile()
+    } catch (e: any) {
+      setError(`Error de conexión: ${e?.message ?? 'desconocido'}`)
     } finally {
       setLoading(null)
     }
@@ -351,22 +362,13 @@ export function SubscriptionSection() {
     setLoading(`checkout-${planId}`)
     setError(null)
     try {
-      const token = await getToken()
-      const res   = await fetch('/api/mercadopago', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ action: 'create_preference', plan: planId }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? 'No se pudo iniciar el pago.')
-        return
-      }
-      // Redirect to MP checkout
+      const { ok, data } = await callApi({ action: 'create_preference', plan: planId })
+      if (!ok) { setError(data.error ?? 'No se pudo iniciar el pago.'); return }
       const dest = data.init_point ?? data.sandbox_init_point
       if (dest) window.location.href = dest
-    } catch {
-      setError('Error de conexión. Intentá de nuevo.')
+      else setError('Mercado Pago no devolvió una URL de pago.')
+    } catch (e: any) {
+      setError(`Error de conexión: ${e?.message ?? 'desconocido'}`)
     } finally {
       setLoading(null)
     }
