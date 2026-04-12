@@ -16,6 +16,7 @@
 - [ ] **Sección Concesionarios** — panel para que el titular del plan contrate y derive acceso a sus vendedores (invitación por email, roles admin/vendedor, límite de seats según plan)
 
 ### Otros pendientes
+- [ ] **Configurar hola@cotizagro.com.ar** — crear o apuntar el mailbox de soporte; actualizar la dirección en SubscriptionSection.tsx y cualquier otro texto de la app donde aparezca
 - [ ] Al borrar lista/cliente, eliminar en todos lados (Supabase + local)
 - [x] Logo cargado en configuración también aparece en el PDF
 - [x] Hacer test de seguridad
