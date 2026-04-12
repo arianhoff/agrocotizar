@@ -306,9 +306,10 @@ function PlanCard({
 
 export function SubscriptionSection() {
   const { plan, isActive, hydrate } = useSubscriptionStore()
-  const [loading,  setLoading]  = useState<string | null>(null)
-  const [error,    setError]    = useState<string | null>(null)
-  const [currency, setCurrency] = useState<'USD' | 'ARS'>('USD')
+  const [loading,       setLoading]       = useState<string | null>(null)
+  const [error,         setError]         = useState<string | null>(null)
+  const [currency,      setCurrency]      = useState<'USD' | 'ARS'>('USD')
+  const [cancelConfirm, setCancelConfirm] = useState(false)
 
   // Read payment result from URL params
   const searchParams = new URLSearchParams(window.location.search)
@@ -495,6 +496,56 @@ export function SubscriptionSection() {
         Sin contratos — cancelás cuando querés.
         Para soporte escribí a <span className="text-[#22C55E]">hola@cotizagro.com.ar</span>.
       </p>
+
+      {/* Cancel subscription */}
+      {plan !== 'free' && (
+        <div className="pt-2 border-t border-[#F1F5F9] text-center">
+          {!cancelConfirm ? (
+            <button
+              onClick={() => setCancelConfirm(true)}
+              className="text-[11px] text-[#CBD5E1] hover:text-[#EF4444] transition-colors cursor-pointer underline underline-offset-2"
+            >
+              Cancelar suscripción
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-[12px] text-[#64748B]">
+                ¿Confirmás la cancelación? Tu acceso se dará de baja de inmediato.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    setLoading('cancel')
+                    setError(null)
+                    try {
+                      const { ok, data } = await callApi({ action: 'cancel_subscription' })
+                      if (!ok) { setError(data.error ?? 'No se pudo cancelar.'); return }
+                      await reloadProfile()
+                      setCancelConfirm(false)
+                    } catch (e: any) {
+                      setError(`Error de conexión: ${e?.message ?? 'desconocido'}`)
+                    } finally {
+                      setLoading(null)
+                    }
+                  }}
+                  disabled={loading === 'cancel'}
+                  className="text-[12px] font-semibold text-[#EF4444] hover:underline cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                >
+                  {loading === 'cancel' && <Loader2 size={11} className="animate-spin" />}
+                  Sí, cancelar
+                </button>
+                <span className="text-[#E2E8F0]">·</span>
+                <button
+                  onClick={() => setCancelConfirm(false)}
+                  className="text-[12px] text-[#94A3B8] hover:text-[#64748B] cursor-pointer"
+                >
+                  No, mantener plan
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

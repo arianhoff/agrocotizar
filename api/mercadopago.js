@@ -256,6 +256,17 @@ export default async function handler(req, res) {
       })
     }
 
+    // ── Cancel subscription ───────────────────────────────────────────────────
+    if (action === 'cancel_subscription') {
+      // Reset plan to free; keep trial_ends_at so they can't restart a trial
+      await serviceClient()
+        .from('profiles')
+        .update({ plan: 'free', plan_expires_at: null })
+        .eq('id', user.id)
+
+      return json(200, { ok: true })
+    }
+
     return json(400, { error: 'Acción desconocida' })
   }
 
