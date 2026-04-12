@@ -40,9 +40,6 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [resendLoading, setResendLoading]         = useState(false)
   const [resendSent, setResendSent]               = useState(false)
 
-  // ── Honey-pot (bots fill this, humans don't) ──────────────────────────────
-  const [honeypot, setHoneypot] = useState('')
-
   // ── Rate limiting (in-memory, resets on page load) ────────────────────────
   const failedAttempts = useRef(0)
   const lockedUntil    = useRef(0)
@@ -81,9 +78,6 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     setError(null)
     setSuccess(null)
     setNeedsConfirmation(false)
-
-    // ── Honey-pot check — bots fill hidden fields ─────────────────────────
-    if (honeypot) return  // silently reject — don't tell the bot it was caught
 
     // ── Rate limit check ──────────────────────────────────────────────────
     if (isLocked()) {
@@ -305,19 +299,6 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
-
-            {/* ── Honey-pot — hidden from humans, visible to bots ────────── */}
-            {/* No name/id attr → password managers ignore it. Bots fill all inputs. */}
-            <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
-              <input
-                type="text"
-                value={honeypot}
-                onChange={e => setHoneypot(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-                data-form-type="other"
-              />
-            </div>
 
             <div className={`space-y-3.5 transition-transform duration-100 ${shaking ? 'animate-shake' : ''}`}>
               {/* Email */}
