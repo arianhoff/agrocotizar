@@ -307,14 +307,15 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           <form onSubmit={handleSubmit} className="space-y-3.5">
 
             {/* ── Honey-pot — hidden from humans, visible to bots ────────── */}
+            {/* No name/id attr → password managers ignore it. Bots fill all inputs. */}
             <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
               <input
                 type="text"
-                name="website"
                 value={honeypot}
                 onChange={e => setHoneypot(e.target.value)}
                 tabIndex={-1}
                 autoComplete="off"
+                data-form-type="other"
               />
             </div>
 
