@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Eye, EyeOff, Tractor, Mail, Lock, UserPlus, LogIn } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Eye, EyeOff, Tractor, Mail, Lock, UserPlus, LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 
 function GoogleIcon() {
@@ -13,29 +13,84 @@ function GoogleIcon() {
   )
 }
 
+// ─── Rate limiter ─────────────────────────────────────────────────────────────
+// Tracks failed attempts per session. After 3 failures adds a delay warning;
+// after 5 failures locks the form for 60 seconds.
+
+const LOCKOUT_AFTER    = 5    // attempts before full lockout
+const WARN_AFTER       = 3    // attempts before warning
+const LOCKOUT_SECS     = 60
+
 type Mode = 'login' | 'register'
 
 export function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [mode, setMode]           = useState<Mode>('login')
-  const [email, setEmail]         = useState('')
-  const [password, setPassword]   = useState('')
-  const [confirm, setConfirm]     = useState('')
-  const [showPwd, setShowPwd]     = useState(false)
-  const [loading, setLoading]         = useState(false)
+  const [mode, setMode]         = useState<Mode>('login')
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [showPwd, setShowPwd]   = useState(false)
+  const [loading, setLoading]           = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [error, setError]             = useState<string | null>(null)
-  const [success, setSuccess]         = useState<string | null>(null)
-  const [shaking, setShaking]         = useState(false)
+  const [error, setError]               = useState<string | null>(null)
+  const [success, setSuccess]           = useState<string | null>(null)
+  const [shaking, setShaking]           = useState(false)
+
+  // ── Email confirmation state ──────────────────────────────────────────────
+  const [needsConfirmation, setNeedsConfirmation] = useState(false)
+  const [resendLoading, setResendLoading]         = useState(false)
+  const [resendSent, setResendSent]               = useState(false)
+
+  // ── Honey-pot (bots fill this, humans don't) ──────────────────────────────
+  const [honeypot, setHoneypot] = useState('')
+
+  // ── Rate limiting (in-memory, resets on page load) ────────────────────────
+  const failedAttempts = useRef(0)
+  const lockedUntil    = useRef(0)
+  const [lockSecsLeft, setLockSecsLeft] = useState(0)
 
   const shake = () => {
     setShaking(true)
     setTimeout(() => setShaking(false), 400)
   }
 
+  // Updates the countdown display every second while locked
+  function startLockCountdown() {
+    const tick = () => {
+      const left = Math.ceil((lockedUntil.current - Date.now()) / 1000)
+      if (left <= 0) { setLockSecsLeft(0); return }
+      setLockSecsLeft(left)
+      setTimeout(tick, 1000)
+    }
+    tick()
+  }
+
+  function recordFailure() {
+    failedAttempts.current++
+    if (failedAttempts.current >= LOCKOUT_AFTER) {
+      lockedUntil.current = Date.now() + LOCKOUT_SECS * 1000
+      startLockCountdown()
+    }
+  }
+
+  function isLocked(): boolean {
+    return Date.now() < lockedUntil.current
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
+    setNeedsConfirmation(false)
+
+    // ── Honey-pot check — bots fill hidden fields ─────────────────────────
+    if (honeypot) return  // silently reject — don't tell the bot it was caught
+
+    // ── Rate limit check ──────────────────────────────────────────────────
+    if (isLocked()) {
+      setError(`Demasiados intentos fallidos. Esperá ${lockSecsLeft} segundos.`)
+      shake()
+      return
+    }
 
     if (!email || !password) {
       setError('Completá todos los campos.')
@@ -61,27 +116,44 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     try {
       if (mode === 'login') {
         const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+
         if (err) {
-          setError(
-            err.message.includes('Invalid login')
-              ? 'Email o contraseña incorrectos.'
-              : err.message
-          )
+          recordFailure()
+
+          if (err.message.toLowerCase().includes('email not confirmed')) {
+            // Account exists but email not yet verified
+            setNeedsConfirmation(true)
+            setError('Confirmá tu email antes de ingresar. Revisá tu bandeja de entrada.')
+          } else {
+            // Use a generic message for login failures — avoids leaking whether
+            // the email is registered or not (prevents account enumeration)
+            const attemptsLeft = Math.max(0, LOCKOUT_AFTER - failedAttempts.current)
+            setError(
+              failedAttempts.current >= WARN_AFTER
+                ? `Email o contraseña incorrectos. ${attemptsLeft > 0 ? `Quedan ${attemptsLeft} intento${attemptsLeft !== 1 ? 's' : ''} antes del bloqueo.` : ''}`
+                : 'Email o contraseña incorrectos.'
+            )
+          }
           shake()
         } else {
+          failedAttempts.current = 0
           onLogin()
         }
+
       } else {
         const { error: err } = await supabase.auth.signUp({ email, password })
+
         if (err) {
-          setError(
-            err.message.includes('already registered')
-              ? 'Ya existe una cuenta con ese email.'
-              : err.message
-          )
-          shake()
+          if (err.message.toLowerCase().includes('already registered')) {
+            // Don't expose that the email exists — show same success message
+            // (Supabase will send a "security alert" email to the existing user)
+            setSuccess('¡Listo! Si el email no está registrado, recibirás un link de confirmación. Revisá tu bandeja.')
+          } else {
+            setError(err.message)
+            shake()
+          }
         } else {
-          setSuccess('¡Cuenta creada! Revisá tu email para confirmar tu cuenta y luego iniciá sesión.')
+          setSuccess('¡Cuenta creada! Revisá tu email y hacé click en el link de confirmación para activar tu cuenta.')
           setMode('login')
           setPassword('')
           setConfirm('')
@@ -92,22 +164,37 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     }
   }
 
+  // Resend confirmation email
+  const handleResend = async () => {
+    if (!email || resendLoading) return
+    setResendLoading(true)
+    const { error: err } = await supabase.auth.resend({ type: 'signup', email })
+    setResendLoading(false)
+    if (!err) {
+      setResendSent(true)
+      setTimeout(() => setResendSent(false), 30_000)
+    }
+  }
+
   const handleGoogle = async () => {
     setGoogleLoading(true)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
     })
-    // page will redirect — no need to reset loading
   }
 
   const switchMode = (m: Mode) => {
     setMode(m)
     setError(null)
     setSuccess(null)
+    setNeedsConfirmation(false)
+    setResendSent(false)
     setPassword('')
     setConfirm('')
   }
+
+  const locked = isLocked()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1E2235] via-[#252d42] to-[#1a1f30] flex items-center justify-center p-4">
@@ -161,9 +248,42 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
 
         {/* Card */}
         <div className="bg-white/[0.05] backdrop-blur-sm border border-white/10 rounded-2xl p-8 shadow-2xl">
+
+          {/* Success banner */}
           {success && (
-            <div className="mb-4 p-3 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/20 text-[12px] text-[#22C55E] leading-relaxed">
+            <div className="mb-4 p-3 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/20 text-[12px] text-[#22C55E] leading-relaxed flex items-start gap-2">
+              <ShieldCheck size={14} className="shrink-0 mt-0.5" />
               {success}
+            </div>
+          )}
+
+          {/* Email not confirmed banner */}
+          {needsConfirmation && (
+            <div className="mb-4 p-3 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 text-[12px] text-[#F59E0B] leading-relaxed">
+              <div className="font-semibold mb-1">Email sin confirmar</div>
+              <div className="text-[#F59E0B]/80 mb-2">
+                Revisá tu bandeja de entrada (y el spam) y hacé click en el link que te enviamos.
+              </div>
+              {resendSent ? (
+                <div className="text-[#22C55E] font-medium">✓ Email reenviado. Revisá tu bandeja.</div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resendLoading || !email}
+                  className="flex items-center gap-1.5 text-[#F59E0B] hover:text-white font-medium cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={resendLoading ? 'animate-spin' : ''} />
+                  {resendLoading ? 'Enviando...' : 'Reenviar email de confirmación'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Lockout banner */}
+          {locked && (
+            <div className="mb-4 p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-[12px] text-[#EF4444] leading-relaxed">
+              Formulario bloqueado por demasiados intentos. Intentá en <span className="font-bold">{lockSecsLeft}s</span>.
             </div>
           )}
 
@@ -171,7 +291,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           <button
             type="button"
             onClick={handleGoogle}
-            disabled={googleLoading || loading}
+            disabled={googleLoading || loading || locked}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white hover:bg-gray-50 text-[14px] font-medium text-[#0F172A] transition-all cursor-pointer disabled:opacity-60 shadow-sm mb-5"
           >
             <GoogleIcon />
@@ -185,6 +305,19 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
+
+            {/* ── Honey-pot — hidden from humans, visible to bots ────────── */}
+            <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+              <input
+                type="text"
+                name="website"
+                value={honeypot}
+                onChange={e => setHoneypot(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
+
             <div className={`space-y-3.5 transition-transform duration-100 ${shaking ? 'animate-shake' : ''}`}>
               {/* Email */}
               <div className="relative">
@@ -195,7 +328,9 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
                   onChange={e => { setEmail(e.target.value); setError(null) }}
                   placeholder="Email"
                   autoFocus
-                  className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all ${
+                  autoComplete="email"
+                  disabled={locked}
+                  className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all disabled:opacity-40 ${
                     error
                       ? 'border-[#EF4444]/60 focus:border-[#EF4444]'
                       : 'border-white/10 focus:border-[#22C55E]/60 focus:bg-white/[0.1]'
@@ -211,7 +346,9 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError(null) }}
                   placeholder={mode === 'register' ? 'Contraseña (mín. 8 caracteres)' : 'Contraseña'}
-                  className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-11 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all ${
+                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  disabled={locked}
+                  className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-11 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all disabled:opacity-40 ${
                     error
                       ? 'border-[#EF4444]/60 focus:border-[#EF4444]'
                       : 'border-white/10 focus:border-[#22C55E]/60 focus:bg-white/[0.1]'
@@ -226,7 +363,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
                 </button>
               </div>
 
-              {/* Confirm password — only in register mode */}
+              {/* Confirm password — register only */}
               {mode === 'register' && (
                 <div className="relative">
                   <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
@@ -235,7 +372,9 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
                     value={confirm}
                     onChange={e => { setConfirm(e.target.value); setError(null) }}
                     placeholder="Repetí la contraseña"
-                    className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all ${
+                    autoComplete="new-password"
+                    disabled={locked}
+                    className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all disabled:opacity-40 ${
                       error
                         ? 'border-[#EF4444]/60 focus:border-[#EF4444]'
                         : 'border-white/10 focus:border-[#22C55E]/60 focus:bg-white/[0.1]'
@@ -244,14 +383,14 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
                 </div>
               )}
 
-              {error && (
+              {error && !needsConfirmation && !locked && (
                 <p className="text-[11px] text-[#EF4444] ml-1 leading-relaxed">{error}</p>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={!email || !password || (mode === 'register' && !confirm) || loading}
+              disabled={!email || !password || (mode === 'register' && !confirm) || loading || locked}
               className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-[#22C55E]/20 mt-1"
             >
               {loading
