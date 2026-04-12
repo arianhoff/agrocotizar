@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CreditCard, Check, Star, AlertTriangle, Clock, Loader2, ExternalLink, Zap } from 'lucide-react'
+import { CreditCard, Check, Star, AlertTriangle, Clock, Loader2, ExternalLink, Zap, Lock } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useSubscriptionStore, PLAN_NAMES, type Plan } from '@/store/subscriptionStore'
 import { supabase } from '@/lib/supabase/client'
@@ -13,6 +13,7 @@ const PLANS_INFO: Array<{
   ars:     number
   badge?:  string
   accent:  boolean
+  locked?: boolean
   features: string[]
   cta:     string
 }> = [
@@ -40,6 +41,7 @@ const PLANS_INFO: Array<{
     usd:     29,
     ars:     36250,
     accent:  false,
+    locked:  true,
     features: [
       'Todo lo del plan Vendedores',
       'Hasta 10 usuarios simultáneos',
@@ -197,14 +199,15 @@ function PlanCard({
   isActive:    boolean
   onTrial:     (planId: Exclude<Plan, 'free'>) => void
   onCheckout:  (planId: Exclude<Plan, 'free'>) => void
-  loading:     string | null  // planId being loaded, or null
+  loading:     string | null
 }) {
   const isCurrent = currentPlan === plan.id && isActive
   const isLoading = loading === plan.id
+  const isLocked  = plan.locked
 
   return (
     <div
-      className="relative flex flex-col p-6 rounded-2xl border transition-all"
+      className={`relative flex flex-col p-6 rounded-2xl border transition-all ${isLocked ? 'opacity-60' : ''}`}
       style={plan.accent ? {
         background:   'linear-gradient(160deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.02) 100%)',
         borderColor:  'rgba(34,197,94,0.35)',
@@ -214,9 +217,14 @@ function PlanCard({
         borderColor:  '#E2E8F0',
       }}
     >
-      {plan.badge && (
+      {plan.badge && !isLocked && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#22C55E] rounded-full text-[10px] font-bold text-white whitespace-nowrap tracking-wider uppercase">
           {plan.badge}
+        </div>
+      )}
+      {isLocked && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-0.5 bg-[#64748B] rounded-full text-[10px] font-bold text-white whitespace-nowrap tracking-wider uppercase">
+          <Lock size={9} /> Próximamente
         </div>
       )}
       {isCurrent && (
@@ -248,7 +256,11 @@ function PlanCard({
       </div>
 
       {/* CTA */}
-      {isCurrent ? (
+      {isLocked ? (
+        <div className="w-full py-2.5 rounded-xl border border-[#E2E8F0] text-[13px] font-semibold text-[#94A3B8] text-center bg-[#F8FAFC] flex items-center justify-center gap-2 cursor-not-allowed">
+          <Lock size={13} /> En desarrollo
+        </div>
+      ) : isCurrent ? (
         <div className="w-full py-2.5 rounded-xl border border-[#22C55E]/40 text-[13px] font-semibold text-[#22C55E] text-center bg-[#F0FDF4]">
           Plan actual
         </div>
