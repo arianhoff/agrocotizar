@@ -21,7 +21,7 @@ const LOCKOUT_AFTER    = 5    // attempts before full lockout
 const WARN_AFTER       = 3    // attempts before warning
 const LOCKOUT_SECS     = 60
 
-type Mode = 'login' | 'register'
+type Mode = 'login' | 'register' | 'forgot'
 
 export function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [mode, setMode]         = useState<Mode>('login')
@@ -39,6 +39,10 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
   const [resendLoading, setResendLoading]         = useState(false)
   const [resendSent, setResendSent]               = useState(false)
+
+  // ── Forgot password state ─────────────────────────────────────────────────
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotSent, setForgotSent]       = useState(false)
 
   // ── Rate limiting (in-memory, resets on page load) ────────────────────────
   const failedAttempts = useRef(0)
@@ -135,7 +139,11 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
         }
 
       } else {
-        const { error: err } = await supabase.auth.signUp({ email, password })
+        const { error: err } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: window.location.origin },
+        })
 
         if (err) {
           if (err.message.toLowerCase().includes('already registered')) {
@@ -162,11 +170,33 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
   const handleResend = async () => {
     if (!email || resendLoading) return
     setResendLoading(true)
-    const { error: err } = await supabase.auth.resend({ type: 'signup', email })
+    const { error: err } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    })
     setResendLoading(false)
     if (!err) {
       setResendSent(true)
       setTimeout(() => setResendSent(false), 30_000)
+    }
+  }
+
+  // Forgot password — sends reset email
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email || forgotLoading) return
+    setForgotLoading(true)
+    setError(null)
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}?reset=1`,
+    })
+    setForgotLoading(false)
+    if (err) {
+      setError('No se pudo enviar el email. Verificá que el email sea correcto.')
+      shake()
+    } else {
+      setForgotSent(true)
     }
   }
 
@@ -184,6 +214,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     setSuccess(null)
     setNeedsConfirmation(false)
     setResendSent(false)
+    setForgotSent(false)
     setPassword('')
     setConfirm('')
   }
@@ -281,8 +312,64 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
             </div>
           )}
 
-          {/* Google OAuth */}
-          <button
+          {/* ── Forgot password panel ───────────────────────────────────── */}
+          {mode === 'forgot' && (
+            <div>
+              {forgotSent ? (
+                <div className="p-4 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/20 text-[13px] text-[#22C55E] leading-relaxed">
+                  <div className="font-semibold mb-1">¡Email enviado!</div>
+                  Revisá tu bandeja de entrada y hacé click en el link para restablecer tu contraseña.
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className="block mt-3 text-white/50 hover:text-white text-[12px] cursor-pointer transition-colors"
+                  >
+                    ← Volver al login
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgot} className="space-y-4">
+                  <p className="text-[13px] text-white/50 leading-relaxed">
+                    Ingresá tu email y te mandamos un link para restablecer tu contraseña.
+                  </p>
+                  <div className={`space-y-3 ${shaking ? 'animate-shake' : ''}`}>
+                    <div className="relative">
+                      <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={e => { setEmail(e.target.value); setError(null) }}
+                        placeholder="Email"
+                        autoFocus
+                        autoComplete="email"
+                        className={`w-full bg-white/[0.07] border rounded-xl pl-10 pr-4 py-3.5 text-white placeholder-white/30 text-[14px] outline-none transition-all ${
+                          error ? 'border-[#EF4444]/60' : 'border-white/10 focus:border-[#22C55E]/60 focus:bg-white/[0.1]'
+                        }`}
+                      />
+                    </div>
+                    {error && <p className="text-[11px] text-[#EF4444] ml-1">{error}</p>}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!email || forgotLoading}
+                    className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-[#22C55E]/20"
+                  >
+                    {forgotLoading ? 'Enviando...' : 'Enviar link de recuperación'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className="w-full text-center text-[12px] text-white/30 hover:text-white/60 cursor-pointer transition-colors"
+                  >
+                    ← Volver al login
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* Google OAuth — only shown in login/register mode */}
+          {mode !== 'forgot' && <button
             type="button"
             onClick={handleGoogle}
             disabled={googleLoading || loading || locked}
@@ -290,9 +377,9 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           >
             <GoogleIcon />
             {googleLoading ? 'Redirigiendo...' : 'Continuar con Google'}
-          </button>
+          </button>}
 
-          <div className="flex items-center gap-3 mb-5">
+          {mode !== 'forgot' && <><div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px bg-white/10" />
             <span className="text-[11px] text-white/30 font-medium shrink-0">o con email</span>
             <div className="flex-1 h-px bg-white/10" />
@@ -380,7 +467,18 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
                 : (mode === 'login' ? 'Ingresar' : 'Crear cuenta')
               }
             </button>
+
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={() => switchMode('forgot')}
+                className="w-full text-center text-[12px] text-white/30 hover:text-white/60 cursor-pointer transition-colors pt-1"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            )}
           </form>
+          </>}
         </div>
 
         <p className="text-center text-[11px] text-white/20 mt-6">
