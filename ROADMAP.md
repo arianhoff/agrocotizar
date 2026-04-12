@@ -2,12 +2,24 @@
 
 ## En progreso / Pendiente
 
-- [ ] Hacer funcionar métodos de pago en el inicio de sesión
-- [ ] Empezar gratis: bloquear app a los 15 días de prueba
+### Pagos y suscripciones
+- [x] Integración Mercado Pago — checkout, webhook, prueba gratis 14 días
+- [ ] **Email de aviso de vencimiento de prueba gratis** — enviar mail X días antes de que expire el trial (Supabase Edge Function + Resend/SendGrid)
+- [ ] **Bloqueo de app al vencer el plan** — mostrar paywall cuando `plan_expires_at` < now y no hay trial activo
+- [ ] Pasar MP a producción — reemplazar token de prueba por producción
+
+### Cuentas y seguridad
+- [ ] **Seguridad en creación de cuenta nueva** — verificación de email obligatoria, rate limiting en signup, CAPTCHA o honey-pot anti-bot
+- [ ] **Personalizar emails y links de Supabase** — dominio propio en emails de confirmación/reset (ej. noreply@cotizagro.com.ar), templates en español con branding
+
+### Multi-usuario (Concesionarios)
+- [ ] **Sección Concesionarios** — panel para que el titular del plan contrate y derive acceso a sus vendedores (invitación por email, roles admin/vendedor, límite de seats según plan)
+
+### Otros pendientes
+- [ ] Al borrar lista/cliente, eliminar en todos lados (Supabase + local)
 - [x] Logo cargado en configuración también aparece en el PDF
 - [x] Hacer test de seguridad
 - [x] Auto-detectar moneda (ARS/USD) al cargar lista de precios
-- [ ] Al borrar lista/cliente, eliminar en todos lados (Supabase + local)
 - [x] Revisar listas extensas o mayores a 50MB (auto-split en chunks de 2MB)
 
 ## Bugs conocidos / Deuda técnica
