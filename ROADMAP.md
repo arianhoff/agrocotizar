@@ -4,9 +4,9 @@
 
 ### Pagos y suscripciones
 - [x] Integración Mercado Pago — checkout, webhook, prueba gratis 14 días
-- [ ] **Email de aviso de vencimiento de prueba gratis** — enviar mail X días antes de que expire el trial (Supabase Edge Function + Resend/SendGrid)
-- [ ] **Bloqueo de app al vencer el plan** — mostrar paywall cuando `plan_expires_at` < now y no hay trial activo
-- [ ] Pasar MP a producción — reemplazar token de prueba por producción
+- [x] Pasar MP a producción
+- [ ] **Email de aviso de vencimiento de prueba gratis** — enviar mail X días antes de que expire el trial (Supabase Edge Function + Resend)
+- [ ] **Diferenciar planes y bloquear funciones** — aplicar límites según plan activo (Gratis, Vendedores, Concesionarios); bloquear acceso al vencer la prueba o el plan pago
 
 ### Cuentas y seguridad
 - [x] Seguridad en creación de cuenta nueva — verificación de email, rate limiting, mensajes de error genéricos
@@ -16,7 +16,7 @@
 - [ ] **Sección Concesionarios** — panel para que el titular del plan contrate y derive acceso a sus vendedores (invitación por email, roles admin/vendedor, límite de seats según plan)
 
 ### Otros pendientes
-- [ ] **Configurar hola@cotizagro.com.ar** — crear o apuntar el mailbox de soporte; actualizar la dirección en SubscriptionSection.tsx y cualquier otro texto de la app donde aparezca
+- [ ] **Configurar hola@cotizagro.com.ar** — crear o apuntar el mailbox de soporte; actualizar la dirección en la app donde aparezca
 - [ ] Al borrar lista/cliente, eliminar en todos lados (Supabase + local)
 - [x] Logo cargado en configuración también aparece en el PDF
 - [x] Hacer test de seguridad
