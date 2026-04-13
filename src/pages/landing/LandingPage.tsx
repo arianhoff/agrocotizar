@@ -610,8 +610,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                   { text: 'Nuevas funciones anticipadas', inc: true },
                   { text: 'Soporte prioritario 24 hs', inc: true },
                 ],
-                cta: 'Comenzar ahora',
-                ctaStyle: 'border',
+                cta: '14 días gratis · sin tarjeta',
+                ctaStyle: 'solid',
                 intent: 'concesionarios',
               },
             ]

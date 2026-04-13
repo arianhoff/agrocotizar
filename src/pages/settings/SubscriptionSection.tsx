@@ -267,8 +267,8 @@ function PlanCard({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Trial CTA — only for vendedores if not yet tried */}
-          {plan.id === 'vendedores' && currentPlan === 'free' && (
+          {/* Trial CTA — available for all plans when user is on free */}
+          {currentPlan === 'free' && (
             <button
               onClick={() => onTrial(plan.id)}
               disabled={!!loading}
@@ -279,23 +279,18 @@ function PlanCard({
             </button>
           )}
 
-          {/* Pay CTA */}
+          {/* Pay / Contratar CTA */}
           <button
             onClick={() => onCheckout(plan.id)}
             disabled={!!loading}
             className={`w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-              plan.id === 'vendedores' && currentPlan === 'free'
+              currentPlan === 'free'
                 ? 'border border-[#22C55E]/30 text-[#22C55E] hover:bg-[#F0FDF4]'
                 : 'bg-[#22C55E] hover:bg-[#16A34A] text-white shadow-lg shadow-[#22C55E]/20'
             }`}
           >
             {loading === `checkout-${plan.id}` ? <Loader2 size={14} className="animate-spin" /> : <ExternalLink size={13} />}
-            {loading === `checkout-${plan.id}`
-              ? 'Redirigiendo...'
-              : plan.id === 'vendedores' && currentPlan === 'free'
-                ? 'Pagar mensualmente'
-                : plan.cta
-            }
+            {loading === `checkout-${plan.id}` ? 'Redirigiendo...' : 'Contratar plan'}
           </button>
         </div>
       )}
@@ -337,17 +332,19 @@ export function SubscriptionSection() {
   const autoStartFired = useRef(false)
   useEffect(() => {
     if (!autoStart || autoStartFired.current) return
-    if (autoStart !== 'trial_vendedores') {
-      // For other intents (e.g. 'concesionarios'), just clean the URL — user sees the section
-      window.history.replaceState(null, '', window.location.pathname)
-      return
-    }
     autoStartFired.current = true
-    // Clean URL first, then load fresh profile and trigger trial
     window.history.replaceState(null, '', window.location.pathname)
+
+    const planToTrial: Exclude<Plan, 'free'> | null =
+      autoStart === 'trial_vendedores'     ? 'vendedores'     :
+      autoStart === 'trial_concesionarios' ? 'concesionarios' :
+      null
+
+    if (!planToTrial) return  // Other intents just open the section
+
     reloadProfile().then(() => {
       const currentPlan = useSubscriptionStore.getState().plan
-      if (currentPlan === 'free') handleTrial('vendedores')
+      if (currentPlan === 'free') handleTrial(planToTrial)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
