@@ -436,10 +436,10 @@ export function SettingsPage() {
   const store        = useSettingsStore()
   const subscription = useSubscriptionStore()
 
-  // If redirected back from MP with ?section=subscription, open that tab
+  // Open subscription tab when returning from MP payment or from landing page plan intent
   const initialSection = (() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.has('payment')) return 'subscription' as SectionId
+    if (params.has('payment') || params.has('autostart')) return 'subscription' as SectionId
     return 'seller' as SectionId
   })()
 

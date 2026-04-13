@@ -84,7 +84,7 @@ function Testimonial({ name, role, company, text, delay = 0 }: {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export function LandingPage({ onLogin }: { onLogin: () => void }) {
+export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
   const [mobileMenu, setMobileMenu] = useState(false)
   const [currency, setCurrency] = useState<'USD' | 'ARS'>('USD')
 
@@ -151,13 +151,13 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
           {/* Right side */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
             <button
-              onClick={onLogin}
+              onClick={() => onLogin()}
               className="hidden sm:block text-[13px] text-white/55 hover:text-white px-3 py-2 rounded-full hover:bg-white/[0.07] transition-all cursor-pointer"
             >
               Ingresar
             </button>
             <button
-              onClick={onLogin}
+              onClick={() => onLogin()}
               className="flex items-center gap-1.5 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-semibold px-4 py-2 rounded-full transition-all cursor-pointer shadow-lg shadow-[#22C55E]/25"
             >
               Empezar gratis
@@ -231,7 +231,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
             style={{ animation: 'fadeUp 0.7s ease 0.3s both' }}
           >
             <button
-              onClick={onLogin}
+              onClick={() => onLogin()}
               className="flex items-center justify-center gap-2 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[15px] font-bold px-8 py-4 rounded-xl transition-all cursor-pointer shadow-2xl shadow-[#22C55E]/30 hover:shadow-[#22C55E]/40 hover:-translate-y-0.5"
             >
               Empezar gratis <ArrowRight size={16} />
@@ -555,7 +555,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
               name: string; accent: boolean; badge?: string
               price: string; unit: string; sub: string
               features: { text: string; inc: boolean }[]
-              cta: string; ctaStyle: string
+              cta: string; ctaStyle: string; intent?: string
             }> = [
               {
                 name: 'Gratis',
@@ -572,7 +572,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
                   { text: 'Soporte por email', inc: true },
                   { text: 'PDF con tu logo', inc: false },
                 ],
-                cta: 'Comenzar ahora',
+                cta: 'Comenzar gratis',
                 ctaStyle: 'border',
               },
               {
@@ -593,6 +593,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
                 ],
                 cta: '14 días gratis · sin tarjeta',
                 ctaStyle: 'solid',
+                intent: 'trial_vendedores',
               },
               {
                 name: 'Concesionarios',
@@ -611,6 +612,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
                 ],
                 cta: 'Comenzar ahora',
                 ctaStyle: 'border',
+                intent: 'concesionarios',
               },
             ]
 
@@ -664,10 +666,10 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
 
                       {/* CTA */}
                       {plan.ctaStyle === 'solid'
-                        ? <button onClick={onLogin} className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-bold transition-all cursor-pointer shadow-lg shadow-[#22C55E]/30">
+                        ? <button onClick={() => onLogin(plan.intent)} className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-bold transition-all cursor-pointer shadow-lg shadow-[#22C55E]/30">
                             {plan.cta}
                           </button>
-                        : <button onClick={onLogin} className="w-full py-3 rounded-xl border border-white/15 text-white/75 text-[13px] font-semibold hover:bg-white/[0.06] hover:text-white transition-all cursor-pointer">
+                        : <button onClick={() => onLogin(plan.intent)} className="w-full py-3 rounded-xl border border-white/15 text-white/75 text-[13px] font-semibold hover:bg-white/[0.06] hover:text-white transition-all cursor-pointer">
                             {plan.cta}
                           </button>
                       }
@@ -705,7 +707,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
               Gratis para siempre en el plan básico.
             </p>
             <button
-              onClick={onLogin}
+              onClick={() => onLogin()}
               className="inline-flex items-center gap-3 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[16px] font-bold px-10 py-4.5 rounded-xl transition-all cursor-pointer shadow-2xl shadow-[#22C55E]/30 hover:shadow-[#22C55E]/50 hover:-translate-y-0.5"
             >
               Empezar gratis ahora <ArrowRight size={18} />
@@ -727,7 +729,7 @@ export function LandingPage({ onLogin }: { onLogin: () => void }) {
             © {new Date().getFullYear()} Cotizagro · Maquinaria Agrícola Argentina
           </div>
           <div className="flex items-center gap-4 text-[12px] text-white/30">
-            <button onClick={onLogin} className="hover:text-white transition-colors cursor-pointer">
+            <button onClick={() => onLogin()} className="hover:text-white transition-colors cursor-pointer">
               Ingresar
             </button>
             <span>·</span>

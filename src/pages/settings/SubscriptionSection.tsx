@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CreditCard, Check, Star, AlertTriangle, Clock, Loader2, ExternalLink, Zap, Lock } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useSubscriptionStore, PLAN_NAMES, type Plan } from '@/store/subscriptionStore'
@@ -31,6 +31,7 @@ const PLANS_INFO: Array<{
       'PDF profesional con tu logo',
       'Verificación BCRA ilimitada',
       'CRM y seguimiento automático',
+      'Envío por WhatsApp',
       'Soporte por WhatsApp',
     ],
     cta: '14 días gratis · sin tarjeta',
@@ -311,9 +312,10 @@ export function SubscriptionSection() {
   const [currency,      setCurrency]      = useState<'USD' | 'ARS'>('USD')
   const [cancelConfirm, setCancelConfirm] = useState(false)
 
-  // Read payment result from URL params
-  const searchParams = new URLSearchParams(window.location.search)
+  // Read URL params
+  const searchParams  = new URLSearchParams(window.location.search)
   const paymentResult = searchParams.get('payment') as 'success' | 'failure' | 'pending' | null
+  const autoStart     = searchParams.get('autostart')
 
   // Reload subscription state after successful payment
   useEffect(() => {
@@ -330,6 +332,25 @@ export function SubscriptionSection() {
         })
     })
   }, [paymentResult])
+
+  // Auto-trigger trial when redirected from landing page plan intent
+  const autoStartFired = useRef(false)
+  useEffect(() => {
+    if (!autoStart || autoStartFired.current) return
+    if (autoStart !== 'trial_vendedores') {
+      // For other intents (e.g. 'concesionarios'), just clean the URL — user sees the section
+      window.history.replaceState(null, '', window.location.pathname)
+      return
+    }
+    autoStartFired.current = true
+    // Clean URL first, then load fresh profile and trigger trial
+    window.history.replaceState(null, '', window.location.pathname)
+    reloadProfile().then(() => {
+      const currentPlan = useSubscriptionStore.getState().plan
+      if (currentPlan === 'free') handleTrial('vendedores')
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function callApi(body: object): Promise<{ ok: boolean; data: any }> {
     const token = await getToken()

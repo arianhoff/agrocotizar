@@ -290,6 +290,14 @@ function App() {
           if (prev && prev !== session.user.id) clearAllStores()
           return session.user.id
         })
+        // On fresh sign-in, honour plan intent stored by the landing page
+        if (event === 'SIGNED_IN') {
+          const pending = sessionStorage.getItem('pendingPlan')
+          if (pending) {
+            sessionStorage.removeItem('pendingPlan')
+            window.location.replace(`/settings?autostart=${pending}`)
+          }
+        }
       }
     })
 
@@ -307,7 +315,10 @@ function App() {
         </QueryClientProvider>
       )
     }
-    return <LandingPage onLogin={() => setShowLogin(true)} />
+    return <LandingPage onLogin={(plan) => {
+      if (plan) sessionStorage.setItem('pendingPlan', plan)
+      setShowLogin(true)
+    }} />
   }
 
   return (
