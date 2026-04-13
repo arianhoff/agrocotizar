@@ -9,8 +9,8 @@
 - [ ] Pasar MP a producción — reemplazar token de prueba por producción
 
 ### Cuentas y seguridad
-- [ ] **Seguridad en creación de cuenta nueva** — verificación de email obligatoria, rate limiting en signup, CAPTCHA o honey-pot anti-bot
-- [ ] **Personalizar emails y links de Supabase** — dominio propio en emails de confirmación/reset (ej. noreply@cotizagro.com.ar), templates en español con branding
+- [x] Seguridad en creación de cuenta nueva — verificación de email, rate limiting, mensajes de error genéricos
+- [x] Personalizar emails de Supabase — templates en español + SMTP propio via Resend (noreply@cotizagro.com.ar)
 
 ### Multi-usuario (Concesionarios)
 - [ ] **Sección Concesionarios** — panel para que el titular del plan contrate y derive acceso a sus vendedores (invitación por email, roles admin/vendedor, límite de seats según plan)
@@ -38,3 +38,6 @@
 - [x] Fix race condition FK al agregar opciones (sync producto antes que opción)
 - [x] Rama `teste` en GitHub para desarrollo/testing antes de pasar a `main`
 - [x] Catálogo viene vacío (sin lista predeterminada GEA)
+- [x] Cancelar suscripción desde configuración
+- [x] Flujo landing → plan → activación directa (trial y checkout sin pasos manuales)
+- [x] Condiciones de pago por defecto cuando la IA no detecta ninguna al importar lista
