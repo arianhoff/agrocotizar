@@ -1342,6 +1342,22 @@ export function CatalogPage() {
           },
         })
       }
+    } else if ((activeList.payment_conditions ?? []).length === 0) {
+      // AI found no conditions and list is empty — apply standard defaults
+      const DEFAULT_CONDITIONS: Array<{ label: string; mode: 'contado' | 'cheques' | 'financiado'; num_checks?: number }> = [
+        { label: 'Contado efectivo o transferencia en el día', mode: 'contado' },
+        { label: '3 cheques a 30, 60 y 90 días',                               mode: 'cheques', num_checks: 3  },
+        { label: '7 cheques a 30, 60, 90, 120, 150, 180 días',                 mode: 'cheques', num_checks: 7  },
+        { label: '10 cheques a 30, 60, 90, 120, 150, 180, 210, 240, 270 días', mode: 'cheques', num_checks: 10 },
+        { label: '12 cheques a 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330 días sin interés', mode: 'cheques', num_checks: 12 },
+        { label: 'Crédito de banco por convenio',                               mode: 'financiado' },
+      ]
+      for (const d of DEFAULT_CONDITIONS) {
+        addPaymentCondition(activeList.id, {
+          label: d.label,
+          condition: { mode: d.mode, discount_pct: 0, num_checks: d.num_checks },
+        })
+      }
     }
 
     setDiff(null)
