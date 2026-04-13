@@ -335,6 +335,18 @@ export function SubscriptionSection() {
     autoStartFired.current = true
     window.history.replaceState(null, '', window.location.pathname)
 
+    // Checkout intents — redirect straight to payment
+    const planToCheckout: Exclude<Plan, 'free'> | null =
+      autoStart === 'checkout_vendedores'     ? 'vendedores'     :
+      autoStart === 'checkout_concesionarios' ? 'concesionarios' :
+      null
+
+    if (planToCheckout) {
+      reloadProfile().then(() => handleCheckout(planToCheckout))
+      return
+    }
+
+    // Trial intents — auto-activate free trial
     const planToTrial: Exclude<Plan, 'free'> | null =
       autoStart === 'trial_vendedores'     ? 'vendedores'     :
       autoStart === 'trial_concesionarios' ? 'concesionarios' :

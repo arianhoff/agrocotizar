@@ -665,14 +665,29 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                       </div>
 
                       {/* CTA */}
-                      {plan.ctaStyle === 'solid'
-                        ? <button onClick={() => onLogin(plan.intent)} className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-bold transition-all cursor-pointer shadow-lg shadow-[#22C55E]/30">
+                      {plan.ctaStyle === 'solid' ? (
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => onLogin(plan.intent)}
+                            className="w-full py-3.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-bold transition-all cursor-pointer shadow-lg shadow-[#22C55E]/30"
+                          >
                             {plan.cta}
                           </button>
-                        : <button onClick={() => onLogin(plan.intent)} className="w-full py-3 rounded-xl border border-white/15 text-white/75 text-[13px] font-semibold hover:bg-white/[0.06] hover:text-white transition-all cursor-pointer">
-                            {plan.cta}
+                          <button
+                            onClick={() => onLogin(plan.intent ? `checkout_${plan.intent.replace('trial_', '')}` : undefined)}
+                            className="w-full py-2.5 rounded-xl border border-white/15 text-white/55 text-[12px] font-semibold hover:bg-white/[0.06] hover:text-white/80 transition-all cursor-pointer"
+                          >
+                            Contratar plan
                           </button>
-                      }
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onLogin(plan.intent)}
+                          className="w-full py-3 rounded-xl border border-white/15 text-white/75 text-[13px] font-semibold hover:bg-white/[0.06] hover:text-white transition-all cursor-pointer"
+                        >
+                          {plan.cta}
+                        </button>
+                      )}
                     </div>
                   </Reveal>
                 ))}
