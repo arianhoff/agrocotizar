@@ -4,10 +4,13 @@ import { QuoteHeader } from '@/components/quoter/QuoteHeader'
 import { ItemsTable } from '@/components/quoter/ItemsTable'
 import { PaymentConditions } from '@/components/payment/PaymentConditions'
 import { QuoteSummary } from '@/components/quoter/QuoteSummary'
+import { UpgradePrompt } from '@/components/plan/UpgradePrompt'
 import { Divider, SectionTitle, Textarea, FieldGroup, Label, Badge } from '@/components/ui'
 
 import { useQuoteStore, computeTotals } from '@/store/quoteStore'
 import { useCatalogStore } from '@/store/catalogStore'
+import { useSavedQuotesStore } from '@/store/savedQuotesStore'
+import { useSubscriptionStore, checkPlanGate } from '@/store/subscriptionStore'
 import { fmtCurrency, fmt } from '@/utils'
 import { X, Receipt, Package, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import type { PriceList } from '@/types'
@@ -178,6 +181,21 @@ export function QuoterPage() {
   const sym = (n: number) => fmtCurrency(n, quote.currency)
   const [showMobileSummary, setShowMobileSummary] = useState(false)
   const [activePriceListId, setActivePriceListId] = useState<string | null>(null)
+  const [showUpgrade, setShowUpgrade] = useState(false)
+
+  const { plan, isActive } = useSubscriptionStore()
+  const { quotes } = useSavedQuotesStore()
+  const thisMonth = new Date().toISOString().slice(0, 7)
+  const quotesThisMonth = quotes.filter(q => q.created_at.startsWith(thisMonth)).length
+  const gate = checkPlanGate('quote', plan, isActive, { quotesThisMonth, priceListCount: 0 })
+
+  if (!gate.allowed) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+        <UpgradePrompt reason={gate.reason as 'quotes' | 'expired'} onClose={() => window.history.back()} />
+      </div>
+    )
+  }
 
   return (
     <div className="pb-20 lg:pb-0">

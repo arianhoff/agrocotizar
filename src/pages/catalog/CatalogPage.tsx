@@ -4,6 +4,8 @@ import { useCatalogStore, type CsvRow } from '@/store/catalogStore'
 import { dataSyncBus } from '@/App'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card, Button, Badge, FieldGroup, Label, Input, Select } from '@/components/ui'
+import { useSubscriptionStore, checkPlanGate, GEA_LIST_ID } from '@/store/subscriptionStore'
+import { UpgradePrompt } from '@/components/plan/UpgradePrompt'
 import {
   extractCatalogFromFile, extractPaymentConditionsFromFile, diffCatalog, readFileAsBase64,
   type CatalogDiff, type ProductDiff, type OptionDiff, type ExtractionProgress,
@@ -1219,7 +1221,18 @@ function PaymentConditionsImportReview({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export function CatalogPage() {
   const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition, syncAll } = useCatalogStore()
+  const { plan, isActive } = useSubscriptionStore()
+  const [showUpgrade, setShowUpgrade] = useState(false)
   const [showNewModal, setShowNewModal] = useState(false)
+
+  // Count user-owned price lists (exclude the global GEA seed)
+  const userPriceListCount = priceLists.filter(pl => pl.id !== GEA_LIST_ID).length
+
+  function openNewListModal() {
+    const gate = checkPlanGate('priceList', plan, isActive, { quotesThisMonth: 0, priceListCount: userPriceListCount })
+    if (!gate.allowed) { setShowUpgrade(true); return }
+    setShowNewModal(true)
+  }
   const [showAdjustModal, setShowAdjustModal] = useState(false)
   const [diff, setDiff] = useState<{ catalog: CatalogDiff; paymentConditions: ExtractedPaymentCondition[] } | null>(null)
   const [uploadStep, setUploadStep] = useState<string | null>(null)
@@ -1422,7 +1435,7 @@ export function CatalogPage() {
             <Button variant="secondary" onClick={() => { dataSyncBus.trigger(); syncAll() }} title="Sincronizar con la nube">
               <RefreshCw size={12} className="inline mr-1" /> Sincronizar
             </Button>
-            <Button variant="primary" onClick={() => setShowNewModal(true)}>
+            <Button variant="primary" onClick={openNewListModal}>
               <Plus size={12} className="inline mr-1" /> Nueva lista
             </Button>
           </div>
@@ -1452,7 +1465,7 @@ export function CatalogPage() {
           <RefreshCw size={14} />
         </button>
         <button
-          onClick={() => setShowNewModal(true)}
+          onClick={openNewListModal}
           className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg bg-[#22C55E] text-white text-[12px] font-medium cursor-pointer hover:bg-[#16A34A] transition-colors"
         >
           <Plus size={12} /> Nueva
@@ -1699,6 +1712,7 @@ export function CatalogPage() {
         </div>
       </div>
 
+      {showUpgrade && <UpgradePrompt reason="priceList" onClose={() => setShowUpgrade(false)} />}
       {showNewModal && <NewPriceListModal onClose={() => setShowNewModal(false)} />}
       {showAdjustModal && activeList && (
         <PriceAdjustModal priceListId={activeList.id} onClose={() => setShowAdjustModal(false)} />

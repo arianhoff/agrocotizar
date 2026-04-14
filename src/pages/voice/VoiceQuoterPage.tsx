@@ -4,6 +4,8 @@ import { PageHeader } from '@/components/layout/AppLayout'
 import { Mic, MicOff, Volume2, Loader2, ArrowRight, RotateCcw, AlertCircle, Pencil, Check, X } from 'lucide-react'
 import { useQuoteStore } from '@/store/quoteStore'
 import { useCatalogStore } from '@/store/catalogStore'
+import { useSubscriptionStore, checkPlanGate, incrementAIQueryCount } from '@/store/subscriptionStore'
+import { UpgradePrompt } from '@/components/plan/UpgradePrompt'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,6 +173,8 @@ export function VoiceQuoterPage() {
   const navigate   = useNavigate()
   const quoteStore = useQuoteStore()
   const { products, priceLists } = useCatalogStore()
+  const { plan, isActive: planIsActive } = useSubscriptionStore()
+  const [showAIUpgrade, setShowAIUpgrade] = useState(false)
 
   const [messages,  setMessages]  = useState<Message[]>([])
   const [quoteData, setQuoteData] = useState<QuoteState>({ ...EMPTY_QUOTE })
@@ -229,6 +233,13 @@ export function VoiceQuoterPage() {
 
   // ── Core: process what the user said ─────────────────────────────────────────
   const processInput = useCallback(async (text: string) => {
+    // Check AI query limit before calling the API
+    const gate = checkPlanGate('ai', plan, planIsActive, { quotesThisMonth: 0, priceListCount: 0 })
+    if (!gate.allowed) {
+      setShowAIUpgrade(true)
+      return
+    }
+
     addMessage('user', text)
     setPhase('thinking')
     setInterim('')
@@ -247,6 +258,7 @@ export function VoiceQuoterPage() {
     try {
       const history = [...messagesRef.current, { role: 'user' as const, text: contextText }]
       const reply   = await askClaude(history, quoteRef.current, catalogText)
+      incrementAIQueryCount()
       applyUpdate(reply.update)
       if (reply.done) {
         setPhase('done')
@@ -437,6 +449,9 @@ export function VoiceQuoterPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
+      {showAIUpgrade && (
+        <UpgradePrompt reason="ai" onClose={() => setShowAIUpgrade(false)} />
+      )}
       <PageHeader title="Cotizar por voz" subtitle="Conversación en tiempo real con el asistente" />
 
       {!supported ? (

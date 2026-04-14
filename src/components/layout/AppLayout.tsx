@@ -1,12 +1,13 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@/utils'
 import {
-  FileText, LayoutDashboard, Settings, Package, Users, PlusCircle, CalendarCheck, LogOut, Menu, X, Search, Mic, Lock
+  FileText, LayoutDashboard, Settings, Package, Users, PlusCircle, CalendarCheck, LogOut, Menu, X, Search, Mic, Lock, AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useSettingsStore } from '@/store/settingsStore'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -25,8 +26,13 @@ const NAV_COMING_SOON = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const company = useSettingsStore(s => s.company)
+  const { plan, isActive, inTrial } = useSubscriptionStore()
+
+  // Show banner when a paid plan (or trial) expired
+  const showExpiredBanner = plan !== 'free' && !isActive
 
   const navLinks = (
     <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -164,6 +170,25 @@ export function AppLayout({ children }: { children: ReactNode }) {
             }
           </div>
         </div>
+
+        {/* Expired plan banner */}
+        {showExpiredBanner && (
+          <div className="flex-shrink-0 bg-[#EF4444] text-white px-4 py-2.5 flex items-center justify-between gap-3 text-[12px]">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={14} className="shrink-0" />
+              <span>
+                <strong>Tu {inTrial ? 'prueba gratuita' : 'plan'} venció.</strong>
+                {' '}Para seguir usando todas las funciones, renová tu suscripción.
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/settings?section=subscription')}
+              className="shrink-0 bg-white text-[#EF4444] font-bold text-[11px] px-3 py-1 rounded-full hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Renovar plan
+            </button>
+          </div>
+        )}
 
         {/* Page scroll area */}
         <main id="main-scroll" className="flex-1 overflow-y-auto min-w-0">
