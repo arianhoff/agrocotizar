@@ -74,9 +74,11 @@ function maxSit(periodos: DeudorPeriodo[]): SituacionCode {
 
 const BCRA_WORKER = 'https://broken-snow-e6e3.arianhoffmann16.workers.dev'
 
-async function bcraFetch(path: string): Promise<Response> {
+async function bcraFetch(path: string, attempt = 0): Promise<Response> {
   const cuit = path.split('/').pop() ?? ''
   const historicas = path.includes('Historicas')
+  const MAX_ATTEMPTS = 3
+  const RETRY_DELAY = 1200 // ms
 
   // Try direct browser fetch with no Referer (BCRA blocks requests with Referer from unknown domains)
   try {
@@ -85,11 +87,30 @@ async function bcraFetch(path: string): Promise<Response> {
       signal: AbortSignal.timeout(6000),
     })
     if (direct.ok || direct.status === 404) return direct
+    // 5xx from BCRA — retry if attempts remain
+    if (direct.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY))
+      return bcraFetch(path, attempt + 1)
+    }
   } catch { /* fall through to Worker */ }
 
-  // Fallback: Cloudflare Worker proxy
-  const workerUrl = `${BCRA_WORKER}?cuit=${cuit}${historicas ? '&historicas=true' : ''}`
-  return fetch(workerUrl, { signal: AbortSignal.timeout(8000) })
+  // Fallback: Cloudflare Worker proxy (also with retry)
+  try {
+    const workerUrl = `${BCRA_WORKER}?cuit=${cuit}${historicas ? '&historicas=true' : ''}`
+    const worker = await fetch(workerUrl, { signal: AbortSignal.timeout(8000) })
+    if (worker.ok || worker.status === 404) return worker
+    if (worker.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY))
+      return bcraFetch(path, attempt + 1)
+    }
+    return worker
+  } catch (e) {
+    if (attempt < MAX_ATTEMPTS - 1) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY))
+      return bcraFetch(path, attempt + 1)
+    }
+    throw e
+  }
 }
 
 async function fetchBCRA(cuit: string): Promise<
