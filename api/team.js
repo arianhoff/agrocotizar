@@ -11,6 +11,76 @@
 
 import { createClient } from '@supabase/supabase-js'
 
+function buildWelcomeEmail({ name, email, password, siteUrl }) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+        <tr>
+          <td style="background:linear-gradient(135deg,#16A34A,#22C55E);padding:32px 40px;text-align:center;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;background:rgba(255,255,255,0.2);border-radius:14px;margin-bottom:16px;">
+              <span style="font-size:28px;">🚜</span>
+            </div>
+            <div style="color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">
+              Cotiz<span style="opacity:0.85;">agro</span>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:40px 40px 32px;">
+            <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0F172A;">
+              ¡Bienvenido/a, ${name}!
+            </h1>
+            <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.6;">
+              Tu acceso a <strong>Cotizagro</strong> está listo. Podés ingresar con las siguientes credenciales:
+            </p>
+
+            <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:20px 24px;margin-bottom:28px;">
+              <table cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="padding:6px 0;font-size:12px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.05em;width:90px;">Email</td>
+                  <td style="padding:6px 0;font-size:14px;color:#0F172A;font-weight:600;">${email}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0;font-size:12px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.05em;">Contraseña</td>
+                  <td style="padding:6px 0;font-size:14px;color:#0F172A;font-weight:600;font-family:monospace;">${password}</td>
+                </tr>
+              </table>
+            </div>
+
+            <p style="margin:0 0 20px;font-size:13px;color:#64748B;line-height:1.6;">
+              Te recomendamos cambiar tu contraseña desde <strong>Configuración</strong> después de tu primer ingreso.
+            </p>
+
+            <div style="text-align:center;margin:0 0 24px;">
+              <a href="${siteUrl}"
+                style="display:inline-block;background:#22C55E;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:10px;box-shadow:0 4px 12px rgba(34,197,94,0.35);">
+                Ingresar a Cotizagro
+              </a>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:20px 40px 32px;border-top:1px solid #F1F5F9;">
+            <p style="margin:0;font-size:12px;color:#CBD5E1;line-height:1.6;text-align:center;">
+              © ${new Date().getFullYear()} Cotizagro · <a href="${siteUrl}" style="color:#94A3B8;">cotizagro.com.ar</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
 function serviceClient() {
   return createClient(
     process.env.SUPABASE_URL,
@@ -102,6 +172,22 @@ export default async function handler(req, res) {
           settings:        { seller: { name } },
         })
         .eq('id', newUser.user.id)
+
+      // Send welcome email with credentials
+      const siteUrl = process.env.SITE_URL || 'https://cotizagro.com.ar'
+      const resendKey = process.env.RESEND_API_KEY
+      if (resendKey) {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from:    'Cotizagro <noreply@cotizagro.com.ar>',
+            to:      [email],
+            subject: 'Tu acceso a Cotizagro está listo',
+            html:    buildWelcomeEmail({ name, email, password, siteUrl }),
+          }),
+        }).catch(e => console.error('[team] Failed to send welcome email:', e))
+      }
 
       console.log(`[team] Created member ${email} under admin ${user.id}`)
       return res.status(200).json({ ok: true, member: { id: newUser.user.id, email, name } })
