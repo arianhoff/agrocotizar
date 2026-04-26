@@ -12,6 +12,7 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { useCRMStore } from '@/store/crmStore'
 import { useCatalogStore } from '@/store/catalogStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { useTeamStore } from '@/store/teamStore'
 import type { FollowUp, PriceList, Product, ProductOption } from '@/types'
 
 const QuoterPage     = lazy(() => import('@/pages/quoter/QuoterPage').then(m => ({ default: m.QuoterPage })))
@@ -22,6 +23,7 @@ const ClientsPage    = lazy(() => import('@/pages/clients/ClientsPage').then(m =
 const SettingsPage   = lazy(() => import('@/pages/settings/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const CUITPage        = lazy(() => import('@/pages/cuit/CUITPage').then(m => ({ default: m.CUITPage })))
 const VoiceQuoterPage = lazy(() => import('@/pages/voice/VoiceQuoterPage').then(m => ({ default: m.VoiceQuoterPage })))
+const TeamPage        = lazy(() => import('@/pages/team/TeamPage').then(m => ({ default: m.TeamPage })))
 
 const qc = new QueryClient({
   defaultOptions: { queries: { staleTime: 1000 * 60 * 2 } },
@@ -49,6 +51,7 @@ function DataSync({ userId }: { userId: string }) {
   const crmStore         = useCRMStore()
   const catalogStore     = useCatalogStore()
   const subscriptionStore = useSubscriptionStore()
+  const teamStore        = useTeamStore()
 
   useEffect(() => {
     let cancelled = false
@@ -78,6 +81,7 @@ function DataSync({ userId }: { userId: string }) {
               data: row.data ?? {},
               created_at: row.created_at,
               updated_at: row.updated_at,
+              user_id: row.user_id,
             }))
             savedQuotes.hydrate(quotes)
           }),
@@ -110,17 +114,29 @@ function DataSync({ userId }: { userId: string }) {
         // Profile / Settings + Subscription
         supabase
           .from('profiles')
-          .select('settings, plan, plan_expires_at, trial_ends_at')
+          .select('settings, plan, plan_expires_at, trial_ends_at, owner_id')
           .eq('id', userId)
           .single()
-          .then(({ data }) => {
+          .then(async ({ data }) => {
             if (cancelled || !data) return
             if (data.settings) settingsStore.hydrate(data.settings)
             subscriptionStore.hydrate({
               plan:            data.plan,
               plan_expires_at: data.plan_expires_at,
               trial_ends_at:   data.trial_ends_at,
+              owner_id:        data.owner_id,
             })
+            // If admin: load team members into teamStore
+            if (data.plan === 'concesionarios' && !data.owner_id) {
+              const session = await supabase.auth.getSession()
+              const token = session.data.session?.access_token
+              if (token) {
+                fetch('/api/team', { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.ok ? r.json() : null)
+                  .then(json => { if (json?.members) teamStore.setMembers(json.members) })
+                  .catch(() => {})
+              }
+            }
           }),
 
         // CRM follow-ups
@@ -258,6 +274,7 @@ function clearAllStores() {
   useCRMStore.getState().clear()
   useCatalogStore.getState().clear()
   useSubscriptionStore.getState().clear()
+  useTeamStore.getState().clear()
   // Clear persisted localStorage keys
   localStorage.removeItem('agrocotizar-quotes')
   localStorage.removeItem('agrocotizar-clients')
@@ -338,6 +355,7 @@ function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/cuit"     element={<CUITPage />} />
               <Route path="/voice"    element={<VoiceQuoterPage />} />
+              <Route path="/team"     element={<TeamPage />} />
               <Route path="*"         element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

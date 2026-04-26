@@ -14,6 +14,7 @@ export interface SavedQuote {
   data: Quote & { totals?: QuoteTotals }
   created_at: string
   updated_at: string
+  user_id?: string
 }
 
 interface SavedQuotesStore {
