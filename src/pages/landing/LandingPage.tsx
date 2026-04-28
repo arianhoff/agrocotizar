@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { HighlightedText } from '../../components/ui/highlighted-text'
-import martinImg from '../../../img/Gemini_Generated_Image_i3dgw0i3dgw0i3dg.png'
-import federicoImg from '../../../img/Gemini_Generated_Image_lkn77klkn77klkn7.png'
-import carlaImg from '../../../img/Gemini_Generated_Image_cr07qncr07qncr07.png'
+import martinImg from '../../assets/Gemini_Generated_Image_i3dgw0i3dgw0i3dg.png'
+import federicoImg from '../../assets/Gemini_Generated_Image_lkn77klkn77klkn7.png'
+import carlaImg from '../../assets/Gemini_Generated_Image_cr07qncr07qncr07.png'
 
 const Arrow   = (p: React.SVGProps<SVGSVGElement>) => <svg width="14" height="14" viewBox="0 0 14 14" fill="none" {...p}><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
 const Check   = (p: React.SVGProps<SVGSVGElement>) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...p}><path d="M3 8l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
