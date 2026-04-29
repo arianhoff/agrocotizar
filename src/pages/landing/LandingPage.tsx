@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { HighlightedText } from '../../components/ui/highlighted-text'
 import logoUrl from '../../assets/ca.svg'
+import step1Img from '../../assets/step-1-lista.png'
+import step2Img from '../../assets/step-2-ia.png'
+import step3Img from '../../assets/step-3-cotizacion.png'
 import martinImg from '../../assets/Gemini_Generated_Image_i3dgw0i3dgw0i3dg.png'
 import federicoImg from '../../assets/Gemini_Generated_Image_lkn77klkn77klkn7.png'
 import carlaImg from '../../assets/Gemini_Generated_Image_cr07qncr07qncr07.png'
@@ -19,92 +22,6 @@ const Wa      = (p: React.SVGProps<SVGSVGElement>) => <svg width="20" height="20
 const StarSvg  = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
 const TrendUp  = (p: React.SVGProps<SVGSVGElement>) => <svg width="20" height="20" viewBox="0 0 20 20" fill="none" {...p}><path d="M3 14l4.5-4.5 3 3L15 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 7h3v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
 const Group    = (p: React.SVGProps<SVGSVGElement>) => <svg width="20" height="20" viewBox="0 0 20 20" fill="none" {...p}><circle cx="8" cy="7" r="3" stroke="currentColor" strokeWidth="1.6"/><path d="M2 17c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><circle cx="15" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M17.5 16c0-2.485-1.567-3.756-3.5-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-
-// ─── Step illustrations ────────────────────────────────────────────────────────
-function StepIllus({ kind }: { kind: 'upload' | 'ai' | 'send' }) {
-  if (kind === 'upload') return (
-    <svg className="lp-step-illus" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
-      <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#EAF5EC"/><stop offset="1" stopColor="#F8FAF6"/></linearGradient></defs>
-      <rect width="320" height="180" fill="url(#g1)"/>
-      <g transform="translate(110 38)">
-        <rect x="0" y="0" width="100" height="110" rx="10" fill="white" stroke="#D7E1D9" strokeDasharray="4 4"/>
-        <path d="M50 70V32M38 44l12-12 12 12" stroke="#3FA34D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-        <rect x="24" y="82" width="52" height="6" rx="3" fill="#EAF5EC"/>
-        <rect x="34" y="94" width="32" height="4" rx="2" fill="#EAF5EC"/>
-      </g>
-      <g transform="translate(36 110)" opacity="0.7">
-        <rect width="66" height="40" rx="6" fill="white" stroke="#E7EBE8"/>
-        <rect x="8" y="10" width="30" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="8" y="20" width="42" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="8" y="30" width="22" height="4" rx="2" fill="#D9DDD8"/>
-      </g>
-      <g transform="translate(218 110)" opacity="0.85">
-        <rect width="66" height="40" rx="6" fill="white" stroke="#E7EBE8"/>
-        <rect x="8" y="10" width="30" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="8" y="20" width="50" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="8" y="30" width="18" height="4" rx="2" fill="#D9DDD8"/>
-      </g>
-    </svg>
-  )
-  if (kind === 'ai') return (
-    <svg className="lp-step-illus" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
-      <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#F8FAF6"/><stop offset="1" stopColor="#E2EFDC"/></linearGradient></defs>
-      <rect width="320" height="180" fill="url(#g2)"/>
-      <g transform="translate(30 36)">
-        <rect width="110" height="108" rx="8" fill="white" stroke="#E7EBE8"/>
-        <rect x="10" y="12" width="60" height="5" rx="2" fill="#D9DDD8"/>
-        <rect x="10" y="24" width="90" height="4" rx="2" fill="#E7EBE8"/>
-        <rect x="10" y="34" width="80" height="4" rx="2" fill="#E7EBE8"/>
-        <rect x="10" y="44" width="86" height="4" rx="2" fill="#E7EBE8"/>
-        <rect x="10" y="54" width="70" height="4" rx="2" fill="#E7EBE8"/>
-        <rect x="10" y="64" width="82" height="4" rx="2" fill="#E7EBE8"/>
-        <rect x="10" y="74" width="60" height="4" rx="2" fill="#E7EBE8"/>
-        <rect x="10" y="86" width="40" height="4" rx="2" fill="#E7EBE8"/>
-      </g>
-      <g transform="translate(180 36)">
-        <rect width="110" height="108" rx="8" fill="white" stroke="#3FA34D" strokeWidth="1.5"/>
-        <rect x="10" y="12" width="50" height="5" rx="2" fill="#3FA34D"/>
-        <rect x="10" y="26" width="90" height="6" rx="3" fill="#EAF5EC"/>
-        <rect x="10" y="38" width="90" height="6" rx="3" fill="#EAF5EC"/>
-        <rect x="10" y="50" width="90" height="6" rx="3" fill="#EAF5EC"/>
-        <rect x="10" y="62" width="90" height="6" rx="3" fill="#EAF5EC"/>
-        <rect x="10" y="74" width="90" height="6" rx="3" fill="#EAF5EC"/>
-        <rect x="10" y="86" width="60" height="6" rx="3" fill="#EAF5EC"/>
-      </g>
-      <g transform="translate(150 84)">
-        <circle r="14" fill="#3FA34D"/>
-        <path d="M0 -7v4M0 3v4M-7 0h4M3 0h4M-5 -5l3 3M2 2l3 3M-5 5l3 -3M2 -2l3 -3" stroke="white" strokeWidth="1.4" strokeLinecap="round"/>
-      </g>
-      <path d="M140 90 L170 90" stroke="#3FA34D" strokeWidth="1.5" strokeDasharray="3 3"/>
-    </svg>
-  )
-  return (
-    <svg className="lp-step-illus" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
-      <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#F0F7EC"/><stop offset="1" stopColor="#FAFAF7"/></linearGradient></defs>
-      <rect width="320" height="180" fill="url(#g3)"/>
-      <g transform="translate(80 28)">
-        <rect width="160" height="125" rx="10" fill="white" stroke="#E7EBE8"/>
-        <rect x="14" y="14" width="60" height="5" rx="2" fill="#0E1513"/>
-        <rect x="14" y="24" width="100" height="4" rx="2" fill="#D9DDD8"/>
-        <line x1="14" y1="38" x2="146" y2="38" stroke="#EAEEEA"/>
-        <rect x="14" y="46" width="70" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="110" y="46" width="36" height="4" rx="2" fill="#3FA34D"/>
-        <rect x="14" y="58" width="60" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="110" y="58" width="36" height="4" rx="2" fill="#3FA34D"/>
-        <rect x="14" y="70" width="80" height="4" rx="2" fill="#D9DDD8"/>
-        <rect x="110" y="70" width="36" height="4" rx="2" fill="#3FA34D"/>
-        <line x1="14" y1="86" x2="146" y2="86" stroke="#EAEEEA"/>
-        <rect x="14" y="94" width="40" height="5" rx="2" fill="#0E1513"/>
-        <rect x="110" y="94" width="36" height="5" rx="2" fill="#0E1513"/>
-        <rect x="14" y="108" width="50" height="6" rx="3" fill="#3FA34D"/>
-      </g>
-      <g transform="translate(232 130)">
-        <circle r="18" fill="#25D366"/>
-        <path d="M-7 -2c0 5 4 9 9 9l1 -1 -2 -2c-2 0 -5 -3 -5 -5l-2 -2c0 -1 0 -2 1 -3 1 -1 2 -1 2 -1l2 4c-1 1 -1 1 -1 2 0 2 2 4 4 4 1 0 1 0 2 -1l4 2c0 0 0 1 -1 2 -1 1 -2 1 -3 1" fill="white"/>
-      </g>
-    </svg>
-  )
-}
 
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -637,13 +554,13 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
             </div>
             <div className="lp-how-grid">
               {[
-                { n:1, kind:'CARGAR',   title:'Subí la lista',           desc:'Subí el PDF, Excel o imagen que te pasó tu proveedor. Como venga, no importa el formato.', tags:[{t:'PDF'},{t:'Excel'},{t:'Imagen',green:true}], foot:'~ 30 segundos', cta:'Probar carga',  illus:'upload' as const },
-                { n:2, kind:'PROCESAR', title:'La IA la pasa en limpio', desc:'Reconoce productos, marcas y precios. Los organiza en tu catálogo automáticamente.',        tags:[{t:'IA',green:true},{t:'OCR'},{t:'Auto'}],       foot:'~ 2 segundos',  cta:'Ver demo',     illus:'ai'     as const },
-                { n:3, kind:'ENVIAR',   title:'Armá y mandá',            desc:'Seleccioná productos, ajustá márgenes y generá el PDF. Mandalo por WhatsApp o email.',        tags:[{t:'PDF'},{t:'WhatsApp',green:true},{t:'Email'}], foot:'~ 1 minuto',    cta:'Ver ejemplo',  illus:'send'   as const },
+                { n:1, kind:'CARGAR',   title:'Subí la lista',           desc:'Subí el PDF, Excel o imagen que te pasó tu proveedor. Como venga, no importa el formato.', tags:[{t:'PDF'},{t:'Excel'},{t:'Imagen',green:true}], foot:'~ 30 segundos', cta:'Probar carga',  img: step1Img },
+                { n:2, kind:'PROCESAR', title:'La IA la pasa en limpio', desc:'Reconoce productos, marcas y precios. Los organiza en tu catálogo automáticamente.',        tags:[{t:'IA',green:true},{t:'OCR'},{t:'Auto'}],       foot:'~ 2 segundos',  cta:'Ver demo',     img: step2Img },
+                { n:3, kind:'ENVIAR',   title:'Armá y mandá',            desc:'Seleccioná productos, ajustá márgenes y generá el PDF. Mandalo por WhatsApp o email.',        tags:[{t:'PDF'},{t:'WhatsApp',green:true},{t:'Email'}], foot:'~ 1 minuto',    cta:'Ver ejemplo',  img: step3Img },
               ].map(s => (
                 <div className="lp-step" key={s.n}>
                   <div className="lp-step-media">
-                    <StepIllus kind={s.illus}/>
+                    <img src={s.img} alt={s.title} className="lp-step-illus" style={{objectFit:'cover', objectPosition:'top left'}}/>
                     <div className="lp-step-tags">
                       {s.tags.map((tag,j) => <span key={j} className={`lp-step-tag${tag.green?' green':''}`}>{tag.t}</span>)}
                     </div>
