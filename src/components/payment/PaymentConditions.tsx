@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuoteStore } from '@/store/quoteStore'
 import { useCatalogStore } from '@/store/catalogStore'
 import { Card, CardTitle, FieldGroup, Label, Input, Select } from '@/components/ui'
@@ -219,6 +219,12 @@ function ListConditionSelector({ conditions }: { conditions: PaymentConditionTem
   const [activeId, setActiveId] = useState<string | null>(null)
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set(conditions.map(c => c.id)))
   const [showCustom, setShowCustom] = useState(false)
+
+  // Sync all conditions to the store on mount so the PDF comparison table is populated immediately
+  useEffect(() => {
+    setPaymentComparisonConditions(conditions)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function applyTemplate(t: PaymentConditionTemplate) {
     setActiveId(t.id)
