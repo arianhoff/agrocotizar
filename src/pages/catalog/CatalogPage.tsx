@@ -160,6 +160,7 @@ function PriceAdjustModal({ priceListId, onClose }: { priceListId: string; onClo
   // ── CSV ──────────────────────────────────────────────────────────────────────
   function handleCSVImport() {
     if (preview.length === 0) return
+    if (products.length > 0 && !confirm(`Esta acción reemplazará los ${products.length} productos actuales por los ${preview.length} del CSV. ¿Continuar?`)) return
     importCSV(priceListId, preview)
     if (detectedCurrency) updatePriceList(priceListId, { currency: detectedCurrency })
     onClose()
@@ -1265,6 +1266,9 @@ export function CatalogPage() {
     const file = e.target.files?.[0]
     if (!file || !activeList) return
     e.target.value = ''
+
+    const aiGate = checkPlanGate('ai', plan, isActive, { quotesThisMonth: 0, priceListCount: 0 })
+    if (!aiGate.allowed) { setShowUpgrade(true); return }
 
     const fileSizeMB = file.size / 1024 / 1024
     const isPDF = file.type === 'application/pdf'

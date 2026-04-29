@@ -32,7 +32,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
       if (cancelled) return
       setUploadResult(result)
       if (result.ok) {
-        setShareUrl(result.url)
+        setShareUrl(result.url ?? null)
         setStatus('ready')
       } else {
         setStatus('fallback')

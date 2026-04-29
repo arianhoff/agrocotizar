@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/store/settingsStore'
 import type { SellerProfile, CompanyProfile, QuoteDefaults } from '@/store/settingsStore'
 import { SubscriptionSection } from './SubscriptionSection'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { supabase } from '@/lib/supabase/client'
 
 // ─── Section nav ─────────────────────────────────────────────────────────────
 const SECTIONS = [
@@ -40,16 +41,25 @@ function SaveBanner({ onSave, onDiscard }: { onSave: () => void; onDiscard: () =
 }
 
 // ─── Logo uploader ────────────────────────────────────────────────────────────
+const LOGO_MAX_BYTES = 800 * 1024  // 800 KB → ~1 MB en base64, safe para localStorage
+
 function LogoUploader({ value, onChange }: { value: string; onChange: (b64: string) => void }) {
   const ref = useRef<HTMLInputElement>(null)
+  const [sizeError, setSizeError] = useState(false)
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    e.target.value = ''
+    if (file.size > LOGO_MAX_BYTES) {
+      setSizeError(true)
+      setTimeout(() => setSizeError(false), 4000)
+      return
+    }
+    setSizeError(false)
     const reader = new FileReader()
     reader.onload = ev => onChange(ev.target?.result as string)
     reader.readAsDataURL(file)
-    e.target.value = ''
   }
 
   return (
@@ -73,7 +83,10 @@ function LogoUploader({ value, onChange }: { value: string; onChange: (b64: stri
             <X size={11} /> Eliminar logo
           </button>
         )}
-        <p className="text-[11px] text-[#94A3B8]">PNG, JPG o SVG · Máx. 2 MB</p>
+        {sizeError
+          ? <p className="text-[11px] text-[#EF4444] font-medium">La imagen supera los 800 KB. Usá una versión más pequeña.</p>
+          : <p className="text-[11px] text-[#94A3B8]">PNG, JPG o SVG · Máx. 800 KB</p>
+        }
       </div>
     </div>
   )
@@ -321,17 +334,29 @@ function QuotesSection({ draft, onChange }: { draft: QuoteDefaults; onChange: (p
 
 // ─── Section: Cuenta ──────────────────────────────────────────────────────────
 function AccountSection() {
-  const [showPwd, setShowPwd] = useState(false)
-  const [pwd, setPwd] = useState('')
-  const [saved, setSaved] = useState(false)
+  const [showPwd, setShowPwd]   = useState(false)
+  const [pwd, setPwd]           = useState('')
+  const [pwdConfirm, setPwdConfirm] = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [pwdStatus, setPwdStatus] = useState<'idle' | 'ok' | 'error'>('idle')
+  const [pwdError, setPwdError] = useState('')
 
-  function handleSavePwd() {
-    if (!pwd.trim()) return
-    // Store in sessionStorage so it takes effect on next login
-    sessionStorage.setItem('agrocotizar_custom_pwd', pwd.trim())
-    setSaved(true)
-    setPwd('')
-    setTimeout(() => setSaved(false), 3000)
+  async function handleSavePwd() {
+    if (pwd.length < 8) return
+    if (pwd !== pwdConfirm) { setPwdError('Las contraseñas no coinciden'); return }
+    setSaving(true)
+    setPwdError('')
+    const { error } = await supabase.auth.updateUser({ password: pwd })
+    setSaving(false)
+    if (error) {
+      setPwdError(error.message)
+      setPwdStatus('error')
+    } else {
+      setPwdStatus('ok')
+      setPwd('')
+      setPwdConfirm('')
+      setTimeout(() => { setPwdStatus('idle'); setShowPwd(false) }, 3000)
+    }
   }
 
   return (
@@ -351,7 +376,7 @@ function AccountSection() {
           </div>
           <div>
             <div className="text-[13px] font-medium text-[#0F172A]">Acceso con contraseña</div>
-            <div className="text-[11px] text-[#94A3B8]">Sistema de login simplificado — sin usuarios múltiples</div>
+            <div className="text-[11px] text-[#94A3B8]">Autenticación gestionada por Supabase</div>
           </div>
           <span className="ml-auto text-[10px] font-bold text-[#22C55E] bg-[#F0FDF4] border border-[#22C55E]/20 px-2 py-0.5 rounded-full">ACTIVO</span>
         </div>
@@ -362,7 +387,7 @@ function AccountSection() {
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-semibold text-[#64748B]">Cambiar contraseña</div>
           <button
-            onClick={() => setShowPwd(v => !v)}
+            onClick={() => { setShowPwd(v => !v); setPwd(''); setPwdConfirm(''); setPwdStatus('idle'); setPwdError('') }}
             className="text-[11px] text-[#22C55E] hover:text-[#16A34A] cursor-pointer font-medium transition-colors"
           >
             {showPwd ? 'Cancelar' : 'Cambiar'}
@@ -375,20 +400,27 @@ function AccountSection() {
               <Input
                 type="password"
                 value={pwd}
-                onChange={e => setPwd(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                onChange={e => { setPwd(e.target.value); setPwdStatus('idle'); setPwdError('') }}
+                placeholder="Mínimo 8 caracteres"
                 autoFocus
               />
             </FieldGroup>
+            <FieldGroup>
+              <Label>Repetir contraseña</Label>
+              <Input
+                type="password"
+                value={pwdConfirm}
+                onChange={e => { setPwdConfirm(e.target.value); setPwdStatus('idle'); setPwdError('') }}
+                placeholder="Repetí la contraseña"
+              />
+            </FieldGroup>
+            {pwdError && <p className="text-[11px] text-[#EF4444]">{pwdError}</p>}
             <div className="flex items-center gap-2">
-              <Button variant="primary" onClick={handleSavePwd} disabled={pwd.length < 6}>
-                <Check size={13} /> Guardar contraseña
+              <Button variant="primary" onClick={handleSavePwd} disabled={pwd.length < 8 || saving}>
+                {saving ? '...' : <><Check size={13} /> Guardar contraseña</>}
               </Button>
-              {saved && <span className="text-[12px] text-[#22C55E] font-medium">¡Guardada!</span>}
+              {pwdStatus === 'ok' && <span className="text-[12px] text-[#22C55E] font-medium">¡Contraseña actualizada!</span>}
             </div>
-            <p className="text-[11px] text-[#94A3B8]">
-              La nueva contraseña se aplica en el próximo inicio de sesión.
-            </p>
           </div>
         )}
       </div>

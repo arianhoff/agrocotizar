@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { validateCuit } from '@/utils'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card } from '@/components/ui'
 import {
@@ -153,7 +154,6 @@ async function fetchAFIP(cuit: string): Promise<AFIPResult> {
     const { authFetch } = await import('@/lib/api')
     const res = await authFetch(`/api/padron?cuit=${clean}`, { headers: { Accept: 'application/json' } })
     const json = await res.json()
-    console.log('[AFIP raw]', JSON.stringify(json).substring(0, 800))
     if (json.error) {
       console.warn('[AFIP proxy]', json.error, json.message, json.detail ?? '')
       return { ok: false, errorCode: json.error, errorMessage: json.message ?? json.error }
@@ -249,11 +249,13 @@ export function CUITPage() {
   const [error, setError]     = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const isValid = input.replace(/-/g, '').length === 11
+  const clean11 = input.replace(/-/g, '')
+  const isValid = clean11.length === 11 && validateCuit(clean11)
 
   async function handleSearch() {
     const clean = input.replace(/-/g, '')
     if (clean.length !== 11) { setError('El CUIT debe tener 11 dígitos.'); return }
+    if (!validateCuit(clean)) { setError('CUIT inválido (dígito verificador incorrecto).'); return }
 
     setLoading(true)
     setError(null)

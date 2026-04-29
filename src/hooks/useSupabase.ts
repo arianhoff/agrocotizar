@@ -41,6 +41,21 @@ export function useSignOut() {
 
 export function useQuotes(filters?: { status?: string; limit?: number }) {
   const store = useSavedQuotesStore()
+
+  // Auto-expire: mark 'sent' quotes whose validity window has passed
+  useEffect(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    store.quotes.forEach(q => {
+      if (q.status !== 'sent') return
+      const expires = new Date(q.created_at)
+      expires.setDate(expires.getDate() + (q.valid_days ?? 15))
+      expires.setHours(0, 0, 0, 0)
+      if (today > expires) store.updateStatus(q.id, 'expired')
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const filtered = filters?.status
     ? store.quotes.filter(q => q.status === filters.status)
     : store.quotes

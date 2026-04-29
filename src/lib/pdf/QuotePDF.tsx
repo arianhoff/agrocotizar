@@ -550,7 +550,7 @@ export async function shareQuotePDF(
 }
 
 export type UploadResult =
-  | { ok: true;  url: string }
+  | { ok: true;  url: string | undefined }
   | { ok: false; reason: 'bucket_missing' | 'auth' | 'upload' | 'sign'; detail: string }
 
 /**
@@ -581,7 +581,7 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
     }
 
     // Register path server-side and get back an opaque token
-    let shortUrl = `${window.location.origin}/api/share?q=${encodeURIComponent(quote.quote_number)}`
+    let shortUrl: string | undefined
     try {
       const shareRes = await fetch('/api/share', {
         method: 'POST',
@@ -593,7 +593,7 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
         const { token } = await shareRes.json()
         if (token) shortUrl = `${window.location.origin}/api/share?t=${token}`
       }
-    } catch { /* share registration failed — URL will 404 but upload succeeded */ }
+    } catch { /* share registration failed — PDF uploaded OK but no short URL */ }
 
     return { ok: true, url: shortUrl }
   } catch (e) {

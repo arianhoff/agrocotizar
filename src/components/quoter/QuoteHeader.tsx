@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuoteStore } from '@/store/quoteStore'
 import { Card, CardTitle, FieldGroup, Label, Input, Select } from '@/components/ui'
-import { PROVINCES } from '@/utils'
+import { PROVINCES, validateCuit } from '@/utils'
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Loader2, Info } from 'lucide-react'
 
 // ─── BNA Dollar rate ──────────────────────────────────────────────────────────
@@ -152,6 +152,7 @@ async function bcraFetch(path: string): Promise<Response> {
 async function checkBCRA(cuit: string): Promise<BCRAState> {
   const clean = cuit.replace(/-/g, '')
   if (clean.length !== 11) return { status: 'error', message: 'CUIT inválido (debe tener 11 dígitos)' }
+  if (!validateCuit(clean)) return { status: 'error', message: 'CUIT inválido (dígito verificador incorrecto)' }
 
   try {
     const res = await bcraFetch(`/centraldedeudores/v1.0/Deudas/${clean}`)

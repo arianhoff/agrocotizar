@@ -261,6 +261,7 @@ export function QuotesListPage() {
   const deleteQuote   = useDeleteQuote()
   const { isAdmin }   = useSubscriptionStore()
   const { nameById }  = useTeamStore()
+  const { followUps, deleteFollowUp } = useCRMStore()
 
   const gridCols = isAdmin
     ? '1fr 2fr 1fr 1.2fr 1fr 1fr 1fr 140px'
@@ -277,6 +278,7 @@ export function QuotesListPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta cotización?')) return
+    followUps.filter(f => f.quote_id === id).forEach(f => deleteFollowUp(f.id))
     deleteQuote.mutate(id)
   }
 

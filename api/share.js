@@ -36,7 +36,11 @@ export default async function handler(req, res) {
       { quote_number, storage_path, tenant_id, token },
       { onConflict: 'quote_number' },
     )
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) {
+      // FK or constraint violation → bad input (not a server error)
+      const clientError = error.code?.startsWith('23')
+      return res.status(clientError ? 400 : 500).json({ error: clientError ? 'Invalid tenant' : 'Internal error' })
+    }
     return res.status(200).json({ ok: true, token })
   }
 
