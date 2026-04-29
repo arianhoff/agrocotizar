@@ -140,7 +140,13 @@ async function bcraFetch(path: string): Promise<Response> {
   } catch { /* fall through */ }
 
   const workerUrl = `${BCRA_WORKER}?cuit=${cuit}${historicas ? '&historicas=true' : ''}`
-  return fetch(workerUrl, { signal: AbortSignal.timeout(8000) })
+  const res = await fetch(workerUrl, { signal: AbortSignal.timeout(8000) }).catch(() => null)
+  // 520 = Cloudflare origin error (BCRA server failed) — retry once after brief pause
+  if (!res || (res.status >= 500 && res.status !== 404)) {
+    await new Promise(r => setTimeout(r, 1500))
+    return fetch(workerUrl, { signal: AbortSignal.timeout(10000) })
+  }
+  return res
 }
 
 async function checkBCRA(cuit: string): Promise<BCRAState> {
@@ -158,7 +164,12 @@ async function checkBCRA(cuit: string): Promise<BCRAState> {
       }
       return { status: 'sin_deudas', denominacion }
     }
-    if (!res.ok) return { status: 'error', message: `BCRA respondió ${res.status}` }
+    if (!res.ok) {
+      const msg = res.status >= 500
+        ? 'El servicio BCRA no está disponible ahora. Podés continuar la cotización igual.'
+        : `Error al consultar BCRA (${res.status})`
+      return { status: 'error', message: msg }
+    }
     const json = await res.json()
     return { status: 'ok', data: json.results as DeudorResult }
   } catch {

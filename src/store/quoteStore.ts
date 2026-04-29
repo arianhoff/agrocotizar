@@ -228,10 +228,12 @@ export const useQuoteStore = create<QuoteStore>()(
         setPaymentComparisonConditions: (conditions) => upd({ payment_comparison_conditions: conditions }),
 
         initFromPriceList: (priceListId, paymentTemplate, currency) => {
+          const current = get().quote
           const q = newQuote()
           const withList: Quote = {
             ...q,
             currency: currency ?? 'ARS',
+            exchange_rate: current.exchange_rate,  // preserve BNA rate already fetched
             notes: undefined,
             payment: paymentTemplate ? { ...paymentTemplate.condition } : q.payment,
           }

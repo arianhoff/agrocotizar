@@ -130,7 +130,12 @@ async function fetchBCRA(cuit: string): Promise<
       }
       return { status: 'sin_deudas', denominacion }
     }
-    if (!res.ok) return { status: 'error', message: `BCRA respondió ${res.status}` }
+    if (!res.ok) return {
+      status: 'error',
+      message: res.status >= 500
+        ? 'El servicio BCRA no está disponible ahora. Podés continuar sin este dato.'
+        : `BCRA respondió ${res.status}`,
+    }
     const json = await res.json()
     return { status: 'ok', data: json.results as DeudorResult }
   } catch {
