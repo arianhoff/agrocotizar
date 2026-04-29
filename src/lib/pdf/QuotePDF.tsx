@@ -580,12 +580,12 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
       }
     }
 
-    // Save storage path so /api/share?q=QUOTE_NUMBER can regenerate the signed URL
-    await supabase.from('quote_shares').upsert({
-      quote_number: quote.quote_number,
-      tenant_id: session.user.id,
-      storage_path: path,
-    }, { onConflict: 'quote_number' })
+    // Save storage path via API (service role bypasses RLS)
+    await fetch('/api/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_number: quote.quote_number, storage_path: path, tenant_id: session.user.id }),
+    })
 
     const shortUrl = `${window.location.origin}/api/share?q=${encodeURIComponent(quote.quote_number)}`
     return { ok: true, url: shortUrl }
