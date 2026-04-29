@@ -13,7 +13,8 @@ function serviceSupabase() {
 }
 
 export default async function handler(req, res) {
-  if (handleCors(req, res)) return
+  const { handled } = handleCors(req, res)
+  if (handled) return
 
   // ── POST: save storage path ────────────────────────────────────────────────
   if (req.method === 'POST') {
