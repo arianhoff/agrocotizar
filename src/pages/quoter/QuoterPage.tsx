@@ -207,7 +207,7 @@ export function QuoterPage() {
         <ListPicker
           activePriceListId={activePriceListId}
           onSelect={(pl) => {
-            initFromPriceList(pl.id)
+            initFromPriceList(pl.id, undefined, pl.currency)
             setActivePriceListId(pl.id)
           }}
           onClear={() => setActivePriceListId(null)}

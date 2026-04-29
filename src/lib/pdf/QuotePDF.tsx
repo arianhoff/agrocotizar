@@ -38,7 +38,7 @@ function buildComparisonRows(quote: Quote): PaymentOption[] {
         discount: t.condition.discount_pct ?? 0,
         detail,
         total: t_totals.total,
-        total_ars: quote.currency === 'ARS' ? t_totals.total : t_totals.total * quote.exchange_rate,
+        total_ars: t_totals.total,
         isActive,
       }
     })
@@ -69,8 +69,9 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   const companyName = company.name || 'Cotizagro'
   const contactEmail = seller.email || company.email || ''
 
-  const arsDisplay = (val: number) => quote.currency === 'ARS' ? `$ ${fmt(Math.round(val))}` : `$ ${fmt(Math.round(val * quote.exchange_rate))}`
-  const usdDisplay = (val: number) => quote.currency === 'ARS' ? `U$S ${fmt(val / quote.exchange_rate)}` : `U$S ${fmt(val)}`
+  const isUSDListWA = quote.currency === 'USD'
+  const arsDisplay = (val: number) => `$ ${fmt(Math.round(val))}`
+  const usdDisplay = (val: number) => `U$S ${fmt(val / quote.exchange_rate)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
@@ -101,10 +102,11 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   options.forEach((opt, i) => {
     const icon = i === 0 ? '✅' : '📋'
     const desc = opt.discount > 0 ? ` (${opt.discount}% dto)` : ''
-    lines.push(`${icon} ${opt.label}${desc}: ${arsDisplay(opt.total)} (${usdDisplay(opt.total)})`)
+    const usdRef = isUSDListWA ? ` (${usdDisplay(opt.total)})` : ''
+    lines.push(`${icon} ${opt.label}${desc}: ${arsDisplay(opt.total)}${usdRef}`)
   })
 
-  lines.push(`_TC: $${quote.exchange_rate.toLocaleString('es-AR')} Dólar BNA vendedor_`)
+  if (isUSDListWA) lines.push(`_TC: $${quote.exchange_rate.toLocaleString('es-AR')} Dólar BNA vendedor_`)
 
   lines.push('')
   if (contactEmail) lines.push(`Consultas: ${contactEmail}`)
@@ -255,8 +257,9 @@ function QuotePDF({
 }) {
   const { payment, taxes, delivery } = quote
   const client = quote.client
-  const ars = (val: number) => quote.currency === 'ARS' ? `$ ${fmt(Math.round(val))}` : `$ ${fmt(Math.round(val * quote.exchange_rate))}`
-  const usd = (val: number) => quote.currency === 'ARS' ? `U$S ${fmt(val / quote.exchange_rate)}` : `U$S ${fmt(val)}`
+  const isUSDList = quote.currency === 'USD'
+  const ars = (val: number) => `$ ${fmt(Math.round(val))}`
+  const usd = (val: number) => `U$S ${fmt(val / quote.exchange_rate)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
@@ -370,10 +373,12 @@ function QuotePDF({
             <Text style={S.grandLabel}>TOTAL</Text>
             <Text style={S.grandValue}>{ars(totals.total)}</Text>
           </View>
-          <View style={[S.totalLine, { marginTop: 4 }]}>
-            <Text style={[S.totalLabel, { fontSize: 7 }]}>Equivalente USD (TC ${quote.exchange_rate.toLocaleString('es-AR')})</Text>
-            <Text style={[S.totalValue, { fontSize: 7 }]}>{usd(totals.total)}</Text>
-          </View>
+          {isUSDList && (
+            <View style={[S.totalLine, { marginTop: 4 }]}>
+              <Text style={[S.totalLabel, { fontSize: 7 }]}>Equivalente USD (TC ${quote.exchange_rate.toLocaleString('es-AR')})</Text>
+              <Text style={[S.totalValue, { fontSize: 7 }]}>{usd(totals.total)}</Text>
+            </View>
+          )}
         </View>
 
         {/* ── Financing simulation ── */}
@@ -402,8 +407,8 @@ function QuotePDF({
         <View style={S.cmpHeader}>
           <Text style={[S.cmpHeaderText, { flex: 2 }]}>MODALIDAD</Text>
           <Text style={[S.cmpHeaderText, { width: 60, textAlign: 'center' }]}>DESCUENTO</Text>
-          <Text style={[S.cmpHeaderText, { width: 90, textAlign: 'right' }]}>TOTAL PESOS</Text>
-          <Text style={[S.cmpHeaderText, { width: 80, textAlign: 'right' }]}>TOTAL USD</Text>
+          <Text style={[S.cmpHeaderText, { width: isUSDList ? 90 : 120, textAlign: 'right' }]}>TOTAL PESOS</Text>
+          {isUSDList && <Text style={[S.cmpHeaderText, { width: 80, textAlign: 'right' }]}>TOTAL USD</Text>}
         </View>
         {paymentOptions.map((opt, i) => (
           <View key={opt.label} style={[S.cmpRow, opt.isActive ? S.cmpRowHighlight : (i % 2 === 1 ? { backgroundColor: BG_ROW } : {})]}>
@@ -413,8 +418,8 @@ function QuotePDF({
               <Text style={{ fontSize: 7, color: SLATE_L, marginLeft: 4 }}>{opt.detail}</Text>
             </View>
             <Text style={[S.cmpDiscount, { width: 60 }]}>{opt.discount > 0 ? `${opt.discount}%` : '—'}</Text>
-            <Text style={[S.cmpCellGreen, { width: 90 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
-            <Text style={[S.cmpCellGray, { width: 80 }]}>{usd(opt.total)}</Text>
+            <Text style={[S.cmpCellGreen, { width: isUSDList ? 90 : 120 }]}>$ {fmt(Math.round(opt.total_ars))}</Text>
+            {isUSDList && <Text style={[S.cmpCellGray, { width: 80 }]}>{usd(opt.total)}</Text>}
           </View>
         ))}
         <View style={{ marginTop: 4, paddingHorizontal: 8 }}>
@@ -434,7 +439,9 @@ function QuotePDF({
         {/* ── Legal note ── */}
         <View style={[S.notesBox, { marginTop: 10, backgroundColor: BG_SOFT, borderColor: BORDER }]}>
           <Text style={[S.notesText, { color: SLATE, fontSize: 7 }]}>
-            Los precios se expresan en pesos argentinos al TC Dólar BNA vendedor ${quote.exchange_rate.toLocaleString('es-AR')}. Los valores en USD son de referencia.
+            {isUSDList
+              ? `Los precios se expresan en pesos argentinos al TC Dólar BNA vendedor $${quote.exchange_rate.toLocaleString('es-AR')}. Los valores en USD son de referencia. `
+              : 'Los precios se expresan en pesos argentinos. '}
             Precios incluyen IVA 10,5%. {companyName} se reserva el derecho de modificar precios sin previo aviso. Oferta válida por {quote.valid_days} días.
           </Text>
         </View>

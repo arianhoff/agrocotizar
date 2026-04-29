@@ -154,7 +154,7 @@ interface QuoteStore {
   setPaymentComparisonConditions: (conditions: PaymentConditionTemplate[]) => void
 
   // Initialize quote from a price list (sets payment from list's first condition)
-  initFromPriceList: (priceListId: string, paymentTemplate?: PaymentConditionTemplate) => void
+  initFromPriceList: (priceListId: string, paymentTemplate?: PaymentConditionTemplate, currency?: 'USD' | 'ARS') => void
 
   // AI bulk apply
   applyAIExtraction: (data: Partial<Quote>) => void
@@ -227,10 +227,11 @@ export const useQuoteStore = create<QuoteStore>()(
 
         setPaymentComparisonConditions: (conditions) => upd({ payment_comparison_conditions: conditions }),
 
-        initFromPriceList: (priceListId, paymentTemplate) => {
+        initFromPriceList: (priceListId, paymentTemplate, currency) => {
           const q = newQuote()
           const withList: Quote = {
             ...q,
+            currency: currency ?? 'ARS',
             notes: undefined,
             payment: paymentTemplate ? { ...paymentTemplate.condition } : q.payment,
           }

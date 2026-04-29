@@ -105,7 +105,7 @@ Si no hay condiciones de pago en el documento, devolvé "payment_conditions": []
 
 Reglas importantes:
 - El precio debe ser número sin separadores de miles ni símbolo (ej: 27700 no "27.700" ni "U$S 27.700")
-- Si la moneda no está explícita asumí USD
+- Si la moneda no está explícita asumí ARS (pesos argentinos). Solo usá USD si el documento dice explícitamente "USD", "U$S", "dólar" o el precio no tiene signo $
 - No dupliques productos con el mismo código
 - En el campo "description" usá solo texto simple sin comillas internas
 - requires_commission: true para la mayoría; false solo si el ítem explícitamente no lleva comisión
@@ -114,10 +114,10 @@ Reglas importantes:
 Formato exacto de respuesta:
 {
   "products": [
-    { "code": "string", "name": "string", "category": "string", "price": number, "currency": "USD", "description": "string opcional sin comillas" }
+    { "code": "string", "name": "string", "category": "string", "price": number, "currency": "ARS", "description": "string opcional sin comillas" }
   ],
   "options": [
-    { "product_code": "string", "name": "string", "price": number, "currency": "USD", "requires_commission": true }
+    { "product_code": "string", "name": "string", "price": number, "currency": "ARS", "requires_commission": true }
   ],
   "payment_conditions": [
     { "label": "string", "mode": "contado", "discount_pct": 20 }

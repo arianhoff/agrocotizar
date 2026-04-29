@@ -236,8 +236,8 @@ export function QuoteSummary() {
   const totals = computeTotals(quote)
   const { currency, exchange_rate, payment } = quote
   const sym = (n: number) => fmtCurrency(n, currency)
-  const arsVal = (n: number) => currency === 'ARS' ? `$ ${fmt(n)}` : (exchange_rate > 0 ? `$ ${fmt(n * exchange_rate)}` : sym(n))
-  const usdSec = (n: number) => exchange_rate > 0 ? `U$S ${fmt(currency === 'ARS' ? n / exchange_rate : n)}` : ''
+  const arsVal = (n: number) => `$ ${fmt(n)}`
+  const usdSec = (n: number) => exchange_rate > 0 ? `U$S ${fmt(n / exchange_rate)}` : ''
   const [pdfLoading, setPdfLoading] = useState(false)
   const [collapsed, setCollapsed]   = useState(false)
   const [showShare, setShowShare]   = useState(false)
@@ -325,7 +325,7 @@ export function QuoteSummary() {
           <span className="text-[20px] font-bold text-[#22C55E] leading-tight tabular-nums">
             {arsVal(totals.total)}
           </span>
-          {totals.total > 0 && exchange_rate > 0 && (
+          {totals.total > 0 && currency === 'USD' && exchange_rate > 0 && (
             <span className="text-[11px] text-white/50 font-mono leading-none">
               ≈ {usdSec(totals.total)} · TC $ {fmt(exchange_rate)}
             </span>
@@ -365,7 +365,7 @@ export function QuoteSummary() {
                 <span className="text-[14px] font-semibold text-[#0F172A]">TOTAL</span>
                 <div className="text-right">
                   <div className="text-[20px] font-bold text-[#22C55E]">{arsVal(totals.total)}</div>
-                  {exchange_rate > 0 && (
+                  {currency === 'USD' && exchange_rate > 0 && (
                     <div className="text-[11px] text-[#94A3B8] font-mono">≈ {usdSec(totals.total)} · TC {exchange_rate.toLocaleString('es-AR')}</div>
                   )}
                 </div>

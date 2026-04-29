@@ -134,8 +134,8 @@ export function ItemsTable({ priceListId }: { priceListId?: string | null }) {
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[#64748B]">$</span>
                     <input
                       type="number"
-                      value={currency === 'ARS' ? item.unit_price : (exchange_rate > 0 ? Math.round(item.unit_price * exchange_rate) : item.unit_price)}
-                      onChange={e => updateItem(item.id, { unit_price: currency === 'ARS' ? Number(e.target.value) : (exchange_rate > 0 ? Number(e.target.value) / exchange_rate : Number(e.target.value)) })}
+                      value={item.unit_price}
+                      onChange={e => updateItem(item.id, { unit_price: Number(e.target.value) })}
                       min={0}
                       className="w-full bg-white border border-[#E2E8F0] rounded-lg text-[#0F172A] text-sm pl-8 pr-2 py-1.5 outline-none focus:border-[#22C55E]"
                     />
@@ -152,7 +152,7 @@ export function ItemsTable({ priceListId }: { priceListId?: string | null }) {
 
                   {/* Subtotal */}
                   <span className="text-[13px] text-[#22C55E] font-semibold text-right whitespace-nowrap">
-                    $ {fmt(currency === 'ARS' ? subtotal : (exchange_rate > 0 ? subtotal * exchange_rate : subtotal))}
+                    $ {fmt(subtotal)}
                   </span>
 
                   {/* Actions */}
