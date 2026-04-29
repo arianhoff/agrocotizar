@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# No indexar rutas de la app (requieren autenticación)
+Disallow: /dashboard
+Disallow: /quoter
+Disallow: /quotes
+Disallow: /crm
+Disallow: /clients
+Disallow: /catalog
+Disallow: /settings
+Disallow: /team
+Disallow: /cuit
+
+Sitemap: https://cotizagro.com.ar/sitemap.xml

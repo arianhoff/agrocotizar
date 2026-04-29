@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@/utils'
 import {
-  FileText, LayoutDashboard, Settings, Package, Users, PlusCircle, CalendarCheck, LogOut, Menu, X, Search, Mic, Lock, AlertTriangle,
+  FileText, LayoutDashboard, Settings, Package, Users, PlusCircle, CalendarCheck, LogOut, Menu, X, Search, Mic, Lock, AlertTriangle, UsersRound,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useSettingsStore } from '@/store/settingsStore'
@@ -29,7 +29,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const company = useSettingsStore(s => s.company)
-  const { plan, isActive, inTrial } = useSubscriptionStore()
+  const { plan, isActive, inTrial, isAdmin } = useSubscriptionStore()
 
   // Show banner when a paid plan (or trial) expired
   const showExpiredBanner = plan !== 'free' && !isActive
@@ -55,6 +55,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Link>
         )
       })}
+
+      {/* Equipo — solo para admins concesionarios */}
+      {isAdmin && (
+        <Link
+          to="/team"
+          onClick={() => setMobileOpen(false)}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all',
+            pathname === '/team' || pathname.startsWith('/team')
+              ? 'bg-[#22C55E]/15 text-[#22C55E]'
+              : 'text-white/50 hover:text-white/80 hover:bg-white/[0.05]'
+          )}
+        >
+          <UsersRound size={16} className={pathname.startsWith('/team') ? 'text-[#22C55E]' : ''} />
+          Equipo
+        </Link>
+      )}
 
       {/* Coming soon items */}
       {NAV_COMING_SOON.map(({ icon: Icon, label }) => (

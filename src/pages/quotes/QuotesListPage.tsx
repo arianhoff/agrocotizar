@@ -9,6 +9,8 @@ import { fmt, fmtDate } from '@/utils'
 import { cn } from '@/utils'
 import type { Quote } from '@/types'
 import { useCRMStore } from '@/store/crmStore'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { useTeamStore } from '@/store/teamStore'
 
 type Status = 'all' | Quote['status']
 
@@ -255,8 +257,14 @@ export function QuotesListPage() {
   const { data: quotes = [], isLoading } = useQuotes(
     activeStatus !== 'all' ? { status: activeStatus } : undefined
   )
-  const updateStatus = useUpdateQuoteStatus()
-  const deleteQuote  = useDeleteQuote()
+  const updateStatus  = useUpdateQuoteStatus()
+  const deleteQuote   = useDeleteQuote()
+  const { isAdmin }   = useSubscriptionStore()
+  const { nameById }  = useTeamStore()
+
+  const gridCols = isAdmin
+    ? '1fr 2fr 1fr 1.2fr 1fr 1fr 1fr 140px'
+    : '1fr 2fr 1.2fr 1fr 1fr 1fr 140px'
 
   const handleDownload = async (row: { id: string; data: unknown }) => {
     setDownloadingId(row.id)
@@ -329,9 +337,10 @@ export function QuotesListPage() {
             {/* ── Desktop table (md+) ── */}
             <div className="hidden md:block rounded-xl bg-white border border-[#E2E8F0] overflow-hidden shadow-sm">
               <div className="grid px-5 py-3 border-b border-[#E2E8F0] text-[10px] font-semibold tracking-widest uppercase text-[#94A3B8] bg-[#F8FAFC]"
-                style={{ gridTemplateColumns: '1fr 2fr 1.2fr 1fr 1fr 1fr 140px' }}>
+                style={{ gridTemplateColumns: gridCols }}>
                 <span>N° Cotización</span>
                 <span>Cliente</span>
+                {isAdmin && <span>Vendedor</span>}
                 <span>Estado</span>
                 <span>Moneda</span>
                 <span>Total</span>
@@ -346,14 +355,18 @@ export function QuotesListPage() {
                 const clientName = quoteData?.client?.name ?? '—'
                 const total = row.total ?? quoteData?.totals?.total ?? 0
                 const sym = row.currency === 'USD' ? 'U$S ' : '$ '
+                const vendorName = isAdmin && row.user_id ? nameById(row.user_id) : ''
 
                 return (
                   <div key={row.id}
                     className="grid px-5 py-3.5 border-b border-[#F1F5F9] hover:bg-[#FAFAFA] transition-colors items-center"
-                    style={{ gridTemplateColumns: '1fr 2fr 1.2fr 1fr 1fr 1fr 140px' }}
+                    style={{ gridTemplateColumns: gridCols }}
                   >
                     <span className="font-mono text-[12px] text-[#22C55E] font-semibold">{row.quote_number}</span>
                     <span className="text-sm text-[#0F172A] truncate pr-4">{clientName}</span>
+                    {isAdmin && (
+                      <span className="text-[11px] text-[#64748B] truncate pr-2">{vendorName || '—'}</span>
+                    )}
                     <div className="flex items-center gap-1.5">
                       <StatusIcon size={12} className={status.variant === 'verde' ? 'text-[#22C55E]' : status.variant === 'rojo' ? 'text-[#EF4444]' : 'text-[#94A3B8]'} />
                       <Badge variant={status.variant}>{status.label}</Badge>
@@ -389,12 +402,17 @@ export function QuotesListPage() {
                 const total = row.total ?? quoteData?.totals?.total ?? 0
                 const sym = row.currency === 'USD' ? 'U$S ' : '$ '
 
+                const vendorNameMobile = isAdmin && row.user_id ? nameById(row.user_id) : ''
+
                 return (
                   <div key={row.id} className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex-1 min-w-0">
                         <span className="font-mono text-[13px] text-[#22C55E] font-bold">{row.quote_number}</span>
                         <div className="text-[14px] font-semibold text-[#0F172A] mt-0.5 truncate">{clientName}</div>
+                        {isAdmin && vendorNameMobile && (
+                          <div className="text-[11px] text-[#94A3B8] mt-0.5">{vendorNameMobile}</div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <StatusIcon size={12} className={status.variant === 'verde' ? 'text-[#22C55E]' : status.variant === 'rojo' ? 'text-[#EF4444]' : 'text-[#94A3B8]'} />
