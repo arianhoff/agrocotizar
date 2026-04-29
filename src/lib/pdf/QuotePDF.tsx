@@ -580,15 +580,15 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
       }
     }
 
-    const { data: signed, error: signError } = await supabase.storage
-      .from('quote-pdfs')
-      .createSignedUrl(path, 60 * 60 * 24 * 30)
+    // Save storage path so /api/share?q=QUOTE_NUMBER can regenerate the signed URL
+    await supabase.from('quote_shares').upsert({
+      quote_number: quote.quote_number,
+      tenant_id: session.user.id,
+      storage_path: path,
+    }, { onConflict: 'quote_number' })
 
-    if (signError || !signed?.signedUrl) {
-      return { ok: false, reason: 'sign', detail: signError?.message ?? 'Sin URL firmada' }
-    }
-
-    return { ok: true, url: signed.signedUrl }
+    const shortUrl = `${window.location.origin}/api/share?q=${encodeURIComponent(quote.quote_number)}`
+    return { ok: true, url: shortUrl }
   } catch (e) {
     return { ok: false, reason: 'upload', detail: String(e) }
   }

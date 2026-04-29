@@ -128,7 +128,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
             <div className="flex items-center gap-2 px-3 py-2.5 bg-[#F0FDF4] border border-[#22C55E]/30 rounded-lg">
               <Link size={12} className="text-[#22C55E] shrink-0" />
               <span className="text-[11px] text-[#16A34A] truncate flex-1 font-mono select-all">
-                {shareUrl.replace(/\?.*/, '').replace('https://', '')}
+                {shareUrl.replace('https://', '')}
               </span>
               <button
                 onClick={handleCopy}
@@ -138,7 +138,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
                 {copied ? 'Copiado' : 'Copiar'}
               </button>
             </div>
-            <p className="text-[10px] text-[#94A3B8] mt-1">Válido 30 días · El destinatario descarga sin necesidad de cuenta</p>
+            <p className="text-[10px] text-[#94A3B8] mt-1">Enlace permanente · El destinatario descarga sin necesidad de cuenta</p>
           </div>
         )}
 
