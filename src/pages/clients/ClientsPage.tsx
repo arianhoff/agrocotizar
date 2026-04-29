@@ -1,14 +1,296 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { PageHeader } from '@/components/layout/AppLayout'
-import { Card, Button, Input, Label, FieldGroup, Textarea, Badge } from '@/components/ui'
-import { useClientStore, type Client } from '@/store/clientStore'
+import { Card, Button, Input, Label, FieldGroup, Textarea } from '@/components/ui'
+import { useClientStore, type Client, type ClientImportRow } from '@/store/clientStore'
 import { useSavedQuotesStore } from '@/store/savedQuotesStore'
-import { cn } from '@/utils'
 import { fmt } from '@/utils'
 import {
   Users, Search, Phone, Mail, MapPin, FileText, Plus,
-  Pencil, Trash2, X, Check, MessageCircle,
+  Pencil, Trash2, X, Check, MessageCircle, Upload, Download,
+  AlertCircle, CheckCircle2, FileSpreadsheet,
 } from 'lucide-react'
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+const TEMPLATE_CSV = `nombre,cuit,telefono,email,provincia,localidad,notas
+Juan Pérez,20-12345678-9,3562-123456,juan@email.com,Córdoba,Río Cuarto,Cliente frecuente
+Agropecuaria Los Sauces SA,30-98765432-1,351-4567890,info@lossauces.com.ar,Santa Fe,Rosario,`
+
+const COL_MAP: Record<string, keyof ClientImportRow> = {
+  nombre: 'name', name: 'name',
+  cuit: 'cuit', 'cuit/cuil': 'cuit', cuil: 'cuit',
+  telefono: 'phone', phone: 'phone', tel: 'phone', celular: 'phone', movil: 'phone',
+  email: 'email', correo: 'email', 'e-mail': 'email',
+  provincia: 'province', province: 'province',
+  localidad: 'city', ciudad: 'city', city: 'city',
+  notas: 'notes', notes: 'notes', observaciones: 'notes', comentarios: 'notes',
+}
+
+function parseCSV(text: string): ClientImportRow[] {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+  if (lines.length < 2) return []
+
+  // Parse a CSV line respecting quoted fields
+  const parseLine = (line: string): string[] => {
+    const fields: string[] = []
+    let cur = ''
+    let inQuote = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
+        else inQuote = !inQuote
+      } else if (ch === ',' && !inQuote) {
+        fields.push(cur.trim()); cur = ''
+      } else {
+        cur += ch
+      }
+    }
+    fields.push(cur.trim())
+    return fields
+  }
+
+  const headers = parseLine(lines[0]).map(h => h.toLowerCase().trim())
+  const colKeys = headers.map(h => COL_MAP[h] ?? null)
+
+  return lines.slice(1).map(line => {
+    const vals = parseLine(line)
+    const row: Record<string, string> = {}
+    colKeys.forEach((key, i) => { if (key && vals[i]) row[key] = vals[i] })
+    return row as unknown as ClientImportRow
+  }).filter(r => r.name?.trim())
+}
+
+function downloadTemplate() {
+  const blob = new Blob([TEMPLATE_CSV], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'plantilla_clientes.csv'
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function exportCSV(clients: Client[]) {
+  const headers = ['nombre', 'cuit', 'telefono', 'email', 'provincia', 'localidad', 'notas']
+  const escape = (v?: string) => v ? `"${v.replace(/"/g, '""')}"` : ''
+  const rows = clients.map(c => [
+    escape(c.name), escape(c.cuit), escape(c.phone),
+    escape(c.email), escape(c.province), escape(c.city), escape(c.notes),
+  ].join(','))
+  const csv = [headers.join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `clientes_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+// ─── Import modal ─────────────────────────────────────────────────────────────
+
+function ImportModal({ onClose }: { onClose: () => void }) {
+  const { clients, importBulk } = useClientStore()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<ClientImportRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<{ added: number; updated: number } | null>(null)
+  const [fileName, setFileName] = useState('')
+
+  const existingCuits = new Set(clients.map(c => c.cuit?.replace(/\D/g, '')).filter(Boolean))
+
+  function handleFile(file: File) {
+    setError(null)
+    setPreview(null)
+    setResult(null)
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = e => {
+      const text = e.target?.result as string
+      const rows = parseCSV(text)
+      if (rows.length === 0) {
+        setError('No se encontraron clientes válidos. Verificá que el archivo tenga la columna "nombre".')
+        return
+      }
+      setPreview(rows)
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  function handleImport() {
+    if (!preview) return
+    const res = importBulk(preview)
+    setResult(res)
+  }
+
+  const newCount = preview?.filter(r => {
+    const c = r.cuit?.replace(/\D/g, '') ?? ''
+    return !c || !existingCuits.has(c)
+  }).length ?? 0
+  const updateCount = (preview?.length ?? 0) - newCount
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-xl bg-white rounded-xl shadow-xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] flex items-center justify-center">
+              <Upload size={15} className="text-[#3B82F6]" />
+            </div>
+            <div className="text-[15px] font-semibold text-[#0F172A]">Importar clientes</div>
+          </div>
+          <button onClick={onClose} className="text-[#94A3B8] hover:text-[#0F172A] cursor-pointer"><X size={18} /></button>
+        </div>
+
+        <div className="p-6 space-y-5">
+
+          {!result ? (
+            <>
+              {/* Template download */}
+              <div className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3">
+                <div>
+                  <div className="text-[13px] font-medium text-[#0F172A]">¿Cómo debe estar el archivo?</div>
+                  <div className="text-[11px] text-[#64748B] mt-0.5">
+                    CSV con columnas: nombre, cuit, telefono, email, provincia, localidad, notas
+                  </div>
+                </div>
+                <button
+                  onClick={downloadTemplate}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] text-[12px] font-medium text-[#374151] rounded-lg hover:border-[#3B82F6]/40 hover:text-[#3B82F6] transition-colors cursor-pointer shrink-0 ml-3"
+                >
+                  <Download size={12} /> Plantilla
+                </button>
+              </div>
+
+              {/* File drop zone */}
+              <div
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+                className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-[#E2E8F0] rounded-xl py-8 cursor-pointer hover:border-[#3B82F6]/50 hover:bg-[#EFF6FF]/30 transition-all group"
+              >
+                <FileSpreadsheet size={28} className="text-[#CBD5E1] group-hover:text-[#3B82F6] transition-colors" />
+                {fileName ? (
+                  <div className="text-[13px] font-medium text-[#3B82F6]">{fileName}</div>
+                ) : (
+                  <>
+                    <div className="text-[13px] font-medium text-[#374151]">Arrastrá tu archivo o hacé clic para elegir</div>
+                    <div className="text-[11px] text-[#94A3B8]">Soporta .csv y .txt — también Excel exportado como CSV</div>
+                  </>
+                )}
+                <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-start gap-2 text-[12px] text-[#EF4444] bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg px-3 py-2.5">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  {error}
+                </div>
+              )}
+
+              {/* Preview */}
+              {preview && (
+                <div className="space-y-3">
+                  {/* Summary */}
+                  <div className="flex gap-3">
+                    <div className="flex-1 bg-[#F0FDF4] border border-[#22C55E]/20 rounded-xl p-3 text-center">
+                      <div className="text-[22px] font-bold text-[#16A34A]">{newCount}</div>
+                      <div className="text-[10px] text-[#16A34A] font-semibold uppercase tracking-wide mt-0.5">Nuevos</div>
+                    </div>
+                    {updateCount > 0 && (
+                      <div className="flex-1 bg-[#EFF6FF] border border-[#3B82F6]/20 rounded-xl p-3 text-center">
+                        <div className="text-[22px] font-bold text-[#2563EB]">{updateCount}</div>
+                        <div className="text-[10px] text-[#2563EB] font-semibold uppercase tracking-wide mt-0.5">Actualizan</div>
+                      </div>
+                    )}
+                    <div className="flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3 text-center">
+                      <div className="text-[22px] font-bold text-[#0F172A]">{preview.length}</div>
+                      <div className="text-[10px] text-[#94A3B8] font-semibold uppercase tracking-wide mt-0.5">Total</div>
+                    </div>
+                  </div>
+
+                  {/* Table preview */}
+                  <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto max-h-44">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                            {(['nombre', 'cuit', 'telefono', 'email', 'localidad'] as const).map(h => (
+                              <th key={h} className="text-left px-3 py-2 font-semibold text-[#64748B] uppercase tracking-wide whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {preview.slice(0, 5).map((row, i) => (
+                            <tr key={i} className="border-b border-[#F1F5F9] last:border-0">
+                              <td className="px-3 py-1.5 font-medium text-[#0F172A] max-w-[120px] truncate">{row.name}</td>
+                              <td className="px-3 py-1.5 font-mono text-[#64748B]">{row.cuit || '—'}</td>
+                              <td className="px-3 py-1.5 text-[#64748B]">{row.phone || '—'}</td>
+                              <td className="px-3 py-1.5 text-[#64748B] max-w-[120px] truncate">{row.email || '—'}</td>
+                              <td className="px-3 py-1.5 text-[#64748B]">{row.city || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {preview.length > 5 && (
+                      <div className="px-3 py-2 text-[10px] text-[#94A3B8] bg-[#F8FAFC] border-t border-[#E2E8F0]">
+                        + {preview.length - 5} filas más
+                      </div>
+                    )}
+                  </div>
+
+                  {updateCount > 0 && (
+                    <p className="text-[11px] text-[#64748B]">
+                      Los clientes que se actualizan solo completan campos vacíos — no pisarán datos existentes.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Success */
+            <div className="py-4 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-[#F0FDF4] flex items-center justify-center mx-auto">
+                <CheckCircle2 size={28} className="text-[#22C55E]" />
+              </div>
+              <div>
+                <div className="text-[15px] font-semibold text-[#0F172A]">Importación exitosa</div>
+                <div className="text-[13px] text-[#64748B] mt-1">
+                  {result.added > 0 && <span>{result.added} cliente{result.added !== 1 ? 's' : ''} nuevo{result.added !== 1 ? 's' : ''}</span>}
+                  {result.added > 0 && result.updated > 0 && <span> · </span>}
+                  {result.updated > 0 && <span>{result.updated} actualizado{result.updated !== 1 ? 's' : ''}</span>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 px-6 pb-5">
+          {!result ? (
+            <>
+              <Button variant="ghost" className="flex-1" onClick={onClose}>Cancelar</Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                disabled={!preview || preview.length === 0}
+                onClick={handleImport}
+              >
+                <Upload size={13} className="inline mr-1.5" />
+                Importar {preview ? `${preview.length} clientes` : ''}
+              </Button>
+            </>
+          ) : (
+            <Button variant="primary" className="flex-1" onClick={onClose}>Listo</Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── Edit / Create modal ──────────────────────────────────────────────────────
 
@@ -433,6 +715,7 @@ export function ClientsPage() {
   const [search, setSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [showNew, setShowNew] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   const filtered = clients.filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -449,11 +732,31 @@ export function ClientsPage() {
         title="Clientes"
         subtitle={`${clients.length} cliente${clients.length !== 1 ? 's' : ''} · ${totalQuotes} cotizaciones`}
         actions={
-          <Button variant="primary" onClick={() => setShowNew(true)} className="flex items-center gap-1.5">
-            <Plus size={12} />
-            <span className="hidden sm:inline">Nuevo cliente</span>
-            <span className="sm:hidden">Nuevo</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {clients.length > 0 && (
+              <button
+                onClick={() => exportCSV(clients)}
+                title="Exportar clientes como CSV"
+                className="flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E2E8F0] text-[12px] font-medium text-[#374151] rounded-lg hover:border-[#22C55E]/40 hover:text-[#16A34A] transition-colors cursor-pointer"
+              >
+                <Download size={13} />
+                <span className="hidden sm:inline">Exportar</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E2E8F0] text-[12px] font-medium text-[#374151] rounded-lg hover:border-[#3B82F6]/40 hover:text-[#3B82F6] transition-colors cursor-pointer"
+            >
+              <Upload size={13} />
+              <span className="hidden sm:inline">Importar CSV</span>
+              <span className="sm:hidden">Importar</span>
+            </button>
+            <Button variant="primary" onClick={() => setShowNew(true)} className="flex items-center gap-1.5">
+              <Plus size={12} />
+              <span className="hidden sm:inline">Nuevo cliente</span>
+              <span className="sm:hidden">Nuevo</span>
+            </Button>
+          </div>
         }
       />
 
@@ -474,13 +777,18 @@ export function ClientsPage() {
         {clients.length === 0 && (
           <Card className="text-center py-16">
             <Users size={32} className="text-[#CBD5E1] mx-auto mb-3" />
-            <p className="text-lg font-medium text-[#94A3B8]">Sin clientes</p>
-            <p className="text-[12px] text-[#94A3B8] mt-1">
-              Los clientes se agregan automáticamente cuando guardás o enviás una cotización.
+            <p className="text-lg font-medium text-[#94A3B8]">Sin clientes todavía</p>
+            <p className="text-[12px] text-[#94A3B8] mt-1 max-w-sm mx-auto">
+              Los clientes se agregan automáticamente al guardar cotizaciones, o podés importar tu lista existente.
             </p>
-            <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-[#22C55E] text-white text-[13px] font-medium rounded-lg hover:bg-[#16A34A] transition-colors cursor-pointer">
-              <Plus size={13} /> Agregar manualmente
-            </button>
+            <div className="flex items-center justify-center gap-2 mt-5">
+              <button onClick={() => setShowImport(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#E2E8F0] text-[#374151] text-[13px] font-medium rounded-lg hover:border-[#3B82F6]/40 hover:text-[#3B82F6] transition-colors cursor-pointer">
+                <Upload size={13} /> Importar CSV
+              </button>
+              <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-[#22C55E] text-white text-[13px] font-medium rounded-lg hover:bg-[#16A34A] transition-colors cursor-pointer">
+                <Plus size={13} /> Agregar manualmente
+              </button>
+            </div>
           </Card>
         )}
 
@@ -502,6 +810,7 @@ export function ClientsPage() {
       </div>
 
       {showNew && <ClientModal onClose={() => setShowNew(false)} />}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
       {selectedClient && (
         <ClientDetail
           client={selectedClient}
