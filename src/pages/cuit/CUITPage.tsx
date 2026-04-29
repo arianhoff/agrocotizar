@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { validateCuit } from '@/utils'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card } from '@/components/ui'
@@ -148,6 +148,13 @@ type AFIPResult =
   | { ok: true; nombre?: string; tipoPersona?: string; tipoClave?: string; domicilio?: string; localidad?: string; provincia?: string; condicionIVA?: string; actividadPrincipal?: string; estadoClave?: string }
   | { ok: false; errorCode: string; errorMessage: string }
 
+async function warmupAfip() {
+  try {
+    const { authFetch } = await import('@/lib/api')
+    await authFetch('/api/padron?warm=true')
+  } catch { /* non-critical */ }
+}
+
 async function fetchAFIP(cuit: string): Promise<AFIPResult> {
   const clean = cuit.replace(/-/g, '')
   try {
@@ -248,6 +255,9 @@ export function CUITPage() {
   const [result, setResult]   = useState<CUITResult | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Pre-heat the WSAA token so the first real query is fast
+  useEffect(() => { warmupAfip() }, [])
 
   const clean11 = input.replace(/-/g, '')
   const isValid = clean11.length === 11 && validateCuit(clean11)
@@ -583,26 +593,14 @@ export function CUITPage() {
               </Card>
             )}
 
-            {/* Sin datos AFIP / error ARCA */}
-            {result.afipError && (
-              <Card>
-                <div className="flex items-center gap-3">
-                  <AlertCircle size={16} className="text-[#94A3B8] shrink-0" />
-                  <div className="text-[12px] text-[#64748B]">
-                    No se pudieron obtener datos de ARCA. El servicio puede estar temporalmente no disponible.
-                  </div>
-                </div>
-              </Card>
-            )}
-            {!result.afipError && !result.denominacion && !result.domicilio && (
-              <Card>
-                <div className="flex items-center gap-3">
-                  <AlertCircle size={16} className="text-[#94A3B8] shrink-0" />
-                  <div className="text-[12px] text-[#64748B]">
-                    No se obtuvieron datos de ARCA. Verificá que el CUIT exista o que las credenciales WSAA estén configuradas.
-                  </div>
-                </div>
-              </Card>
+            {/* Nota discreta si ARCA no devolvió datos fiscales */}
+            {result.afipError && !result.estadoClave && !result.condicionIVA && (
+              <div className="flex items-center gap-2 px-1">
+                <AlertCircle size={13} className="text-[#CBD5E1] shrink-0" />
+                <p className="text-[11px] text-[#94A3B8]">
+                  Datos fiscales de ARCA no disponibles en este momento.
+                </p>
+              </div>
             )}
 
           </div>
