@@ -38,7 +38,7 @@ function buildComparisonRows(quote: Quote): PaymentOption[] {
         discount: t.condition.discount_pct ?? 0,
         detail,
         total: t_totals.total,
-        total_ars: t_totals.total * quote.exchange_rate,
+        total_ars: quote.currency === 'ARS' ? t_totals.total : t_totals.total * quote.exchange_rate,
         isActive,
       }
     })
@@ -54,7 +54,7 @@ function buildComparisonRows(quote: Quote): PaymentOption[] {
   return CONDITIONS.map((c) => {
     const t = computeTotals({ ...quote, payment: { ...quote.payment, mode: c.mode, discount_pct: c.discount } })
     const isActive = quote.payment.mode === c.mode && (quote.payment.discount_pct ?? 0) === c.discount
-    return { ...c, total: t.total, total_ars: t.total * quote.exchange_rate, isActive }
+    return { ...c, total: t.total, total_ars: quote.currency === 'ARS' ? t.total : t.total * quote.exchange_rate, isActive }
   })
 }
 
@@ -69,8 +69,8 @@ export function buildWhatsAppText(quote: Quote, totals: QuoteTotals): string {
   const companyName = company.name || 'Cotizagro'
   const contactEmail = seller.email || company.email || ''
 
-  const arsDisplay = (usd: number) => `$ ${fmt(Math.round(usd * quote.exchange_rate))}`
-  const usdDisplay = (usd: number) => `U$S ${fmt(usd)}`
+  const arsDisplay = (val: number) => quote.currency === 'ARS' ? `$ ${fmt(Math.round(val))}` : `$ ${fmt(Math.round(val * quote.exchange_rate))}`
+  const usdDisplay = (val: number) => quote.currency === 'ARS' ? `U$S ${fmt(val / quote.exchange_rate)}` : `U$S ${fmt(val)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 
@@ -255,8 +255,8 @@ function QuotePDF({
 }) {
   const { payment, taxes, delivery } = quote
   const client = quote.client
-  const ars = (usd: number) => `$ ${fmt(Math.round(usd * quote.exchange_rate))}`
-  const usd = (n: number) => `U$S ${fmt(n)}`
+  const ars = (val: number) => quote.currency === 'ARS' ? `$ ${fmt(Math.round(val))}` : `$ ${fmt(Math.round(val * quote.exchange_rate))}`
+  const usd = (val: number) => quote.currency === 'ARS' ? `U$S ${fmt(val / quote.exchange_rate)}` : `U$S ${fmt(val)}`
   const validUntil = new Date(quote.created_at)
   validUntil.setDate(validUntil.getDate() + quote.valid_days)
 

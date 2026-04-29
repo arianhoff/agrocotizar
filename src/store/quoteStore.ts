@@ -16,7 +16,7 @@ const newQuote = (): Quote => ({
   quote_number: `COT-${String(Math.floor(Math.random() * 9000) + 1000)}`,
   status: 'draft',
   client: { name: '', province: '', city: '' },
-  currency: 'USD' as const,  // always USD — both USD and ARS shown in summary via exchange_rate
+  currency: 'ARS' as const,  // always ARS — USD shown as secondary reference via exchange_rate
   exchange_rate: 1150,
   items: [],
   discounts: [],
@@ -109,7 +109,7 @@ export function computeTotals(quote: Quote): QuoteTotals {
     tax_base: taxBase,
     iva,
     total,
-    total_ars: quote.currency === 'USD' ? total * quote.exchange_rate : undefined,
+    total_ars: quote.currency === 'ARS' ? total : total * quote.exchange_rate,
     deposit,
     installment_amount: installmentAmount,
     total_financed: totalFinanced,
