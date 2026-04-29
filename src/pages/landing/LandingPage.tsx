@@ -196,8 +196,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         .lp-root { font-family: "Geist", system-ui, -apple-system, sans-serif; color: #0E1513; background: #FFFFFF; font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
         .lp-root * { box-sizing: border-box; }
         .lp-root a { color: inherit; text-decoration: none; }
-        .lp-root button { font-family: inherit; cursor: pointer; border: none; }
-        .lp-root button:not(.lp-btn) { background: none; }
+        .lp-root button { font-family: inherit; cursor: pointer; }
+        .lp-root button:not(.lp-btn) { background: none; border: none; }
         .lp-container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
         /* ── Nav ── */
@@ -372,9 +372,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         .lp-plan li { padding: 8px 0; display: flex; gap: 10px; align-items: flex-start; color: #394742; border-bottom: 1px solid #F0F5F0; }
         .lp-plan li:last-child { border-bottom: none; }
         .lp-plan li svg { flex-shrink: 0; margin-top: 2px; color: #3FA34D; }
-        .lp-plan .lp-btn-outline { border-color: #B8C0BC; }
-        .lp-plan .lp-btn-outline:hover { border-color: #394742; }
-        .lp-plan-secondary { font-size: 13px; color: #6B7872; padding: 8px; width: 100%; text-align: center; margin-top: 6px; }
+.lp-plan-secondary { font-size: 13px; color: #6B7872; padding: 8px; width: 100%; text-align: center; margin-top: 6px; }
         .lp-plan-secondary:hover { color: #0E1513; }
 
         /* ── FAQ ── */
