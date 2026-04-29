@@ -246,28 +246,38 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         @media (max-width: 480px) { .lp-section { padding: 56px 0; } }
         .lp-eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #1F5F3F; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; font-family: ui-monospace, "Geist Mono", monospace; }
         .lp-eyebrow::before { content: ""; width: 16px; height: 1px; background: currentColor; flex-shrink: 0; }
-        .lp-section-title { font-size: clamp(32px, 4vw, 44px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 16px; font-weight: 600; }
+        .lp-section-title { font-size: clamp(28px, 4vw, 44px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 16px; font-weight: 600; }
         .lp-section-sub { font-size: 18px; color: #6B7872; max-width: 620px; margin: 0; }
-        .lp-section-head { margin-bottom: 64px; }
+        .lp-section-head { margin-bottom: 56px; }
+        @media (max-width: 820px) {
+          .lp-section-head { text-align: center; display: flex; flex-direction: column; align-items: center; margin-bottom: 40px; }
+          .lp-section-sub { text-align: center; margin: 0 auto; }
+          .lp-section-title br { display: none; }
+        }
 
         /* ── Hero ── */
         .lp-hero { padding: 72px 0 88px; position: relative; overflow: hidden; }
-        @media (max-width: 820px) { .lp-hero { padding: 52px 0 72px; } }
-        @media (max-width: 480px) { .lp-hero { padding: 36px 0 56px; } }
+        @media (max-width: 820px) { .lp-hero { padding: 48px 0 64px; } }
+        @media (max-width: 480px) { .lp-hero { padding: 32px 0 48px; } }
         .lp-hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
         @media (max-width: 960px) { .lp-hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+        @media (max-width: 820px) { .lp-hero-grid { text-align: center; } }
         .lp-hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid #E7EBE8; border-radius: 999px; font-size: 13px; color: #394742; margin-bottom: 24px; background: white; }
         .lp-hero-badge-tag { background: #EAF5EC; color: #1F5F3F; padding: 2px 10px; border-radius: 999px; font-weight: 500; font-size: 12px; }
-        .lp-hero h1 { font-size: clamp(40px, 5.5vw, 64px); line-height: 1.02; letter-spacing: -0.03em; margin: 0 0 24px; font-weight: 600; }
+        .lp-hero h1 { font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 24px; font-weight: 600; }
         .lp-hero h1 em { font-style: normal; color: #3FA34D; }
-        .lp-hero-sub { font-size: 19px; color: #394742; max-width: 520px; margin: 0 0 32px; line-height: 1.5; }
+        .lp-hero-sub { font-size: 18px; color: #394742; max-width: 520px; margin: 0 0 32px; line-height: 1.5; }
+        @media (max-width: 820px) { .lp-hero-sub { margin: 0 auto 32px; } }
         .lp-hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
-        @media (max-width: 380px) { .lp-hero-ctas { flex-direction: column; } .lp-hero-ctas .lp-btn { width: 100%; justify-content: center; } }
+        @media (max-width: 820px) { .lp-hero-ctas { justify-content: center; } }
+        @media (max-width: 420px) { .lp-hero-ctas { flex-direction: column; } .lp-hero-ctas .lp-btn { width: 100%; justify-content: center; } }
         .lp-hero-trust { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        @media (max-width: 820px) { .lp-hero-trust { justify-content: center; } }
         .lp-trust-stat { display: flex; flex-direction: column; gap: 1px; }
         .lp-trust-stat-val { font-size: 18px; font-weight: 600; color: #0E1513; letter-spacing: -0.02em; line-height: 1.1; }
         .lp-trust-stat-label { font-size: 12px; color: #6B7872; }
         .lp-trust-divider { width: 1px; height: 32px; background: #E7EBE8; flex-shrink: 0; }
+        @media (max-width: 960px) { .lp-mock-wrap { display: none; } }
 
         /* Mock */
         .lp-mock { background: white; border: 1px solid #E7EBE8; border-radius: 16px; box-shadow: 0 1px 2px rgba(14,21,19,.04), 0 20px 40px -16px rgba(14,21,19,.14), 0 40px 80px -30px rgba(31,95,63,.18); overflow: hidden; }
@@ -326,8 +336,9 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
 
         /* ── Benefits ── */
         .lp-benefits-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #E7EBE8; border: 1px solid #E7EBE8; border-radius: 16px; overflow: hidden; }
-        @media (max-width: 820px) { .lp-benefits-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 540px) { .lp-benefits-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 820px) { .lp-benefits-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px) { .lp-benefits-grid { grid-template-columns: 1fr; } }
+        .lp-benefit { background: white; padding: 28px 24px; transition: background .2s; }
         .lp-benefit { background: white; padding: 32px 28px; transition: background .2s; }
         .lp-benefit:hover { background: #FAFDF8; }
         .lp-benefit-icon { width: 40px; height: 40px; border-radius: 10px; background: #EAF5EC; color: #1F5F3F; display: grid; place-items: center; margin-bottom: 20px; }
@@ -403,7 +414,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         .lp-cta-box .lp-btn-outline:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); }
         .lp-contact-card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 18px; padding: 28px; display: flex; flex-direction: column; gap: 0; }
         .lp-contact-card-title { font-size: 13px; color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .08em; font-family: ui-monospace, monospace; margin-bottom: 20px; }
-        .lp-contact-item { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+        .lp-contact-item { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.07); flex-wrap: wrap; }
+        @media (max-width: 400px) { .lp-contact-action { width: 100%; } .lp-contact-btn { width: 100%; justify-content: center; } }
         .lp-contact-item:last-child { border-bottom: none; padding-bottom: 0; }
         .lp-contact-item:first-of-type { padding-top: 0; }
         .lp-contact-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; }
@@ -436,7 +448,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
 
         /* ── Problem ── */
         .lp-prob-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-bottom: 20px; }
-        @media (max-width: 820px) { .lp-prob-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto 20px; } }
+        @media (max-width: 820px) { .lp-prob-grid { grid-template-columns: 1fr; margin: 0 auto 20px; } }
+        @media (max-width: 480px) { .lp-prob-resolution { padding: 28px 20px; } }
         .lp-prob-card { background: white; border: 1px solid #E7EBE8; border-radius: 16px; padding: 32px 28px; display: flex; flex-direction: column; gap: 12px; transition: border-color .2s, box-shadow .2s; }
         .lp-prob-card:hover { border-color: rgba(63,163,77,.35); box-shadow: 0 12px 32px -12px rgba(14,21,19,.1); }
         .lp-prob-icon { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; }
@@ -526,7 +539,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                 </div>
               </div>
             </div>
-            <div style={{position:'relative', paddingBottom: 28}}>
+            <div className="lp-mock-wrap" style={{position:'relative', paddingBottom: 28}}>
               <div className="lp-mock">
                 <div className="lp-mock-bar">
                   <div className="lp-mock-dot"/><div className="lp-mock-dot"/><div className="lp-mock-dot"/>
