@@ -156,7 +156,7 @@ const S = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: GREEN,
   },
-  logoImg: { height: 70, maxWidth: 240, objectFit: 'contain' },
+  logoImg: { height: 100, maxWidth: 300, objectFit: 'contain' },
   logoText: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: NAVY },
   logoAccent: { color: GREEN },
   logoSub: { fontSize: 7, color: GREEN_D, letterSpacing: 2, marginTop: 2 },
