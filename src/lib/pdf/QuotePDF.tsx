@@ -580,15 +580,21 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
       }
     }
 
-    // Register path server-side (fire-and-forget — don't block the UI)
-    fetch('/api/share', {
-      method: 'POST',
-      signal: AbortSignal.timeout(10000),
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quote_number: quote.quote_number, storage_path: path, tenant_id: session.user.id }),
-    }).catch(() => {})
+    // Register path server-side and get back an opaque token
+    let shortUrl = `${window.location.origin}/api/share?q=${encodeURIComponent(quote.quote_number)}`
+    try {
+      const shareRes = await fetch('/api/share', {
+        method: 'POST',
+        signal: AbortSignal.timeout(10000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_number: quote.quote_number, storage_path: path, tenant_id: session.user.id }),
+      })
+      if (shareRes.ok) {
+        const { token } = await shareRes.json()
+        if (token) shortUrl = `${window.location.origin}/api/share?t=${token}`
+      }
+    } catch { /* share registration failed — URL will 404 but upload succeeded */ }
 
-    const shortUrl = `${window.location.origin}/api/share?q=${encodeURIComponent(quote.quote_number)}`
     return { ok: true, url: shortUrl }
   } catch (e) {
     return { ok: false, reason: 'upload', detail: String(e) }
