@@ -53,10 +53,49 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ error: 'ANTHROPIC_API_KEY no configurada' }))
   }
 
+  // Allowed models — only Haiku to prevent cost abuse
+  const ALLOWED_MODELS = new Set([
+    'claude-haiku-4-5-20251001',
+    'claude-haiku-4-5',
+  ])
+  // Hard cap on tokens regardless of what the client sends
+  const MAX_TOKENS_CAP = 16000
+  // Max messages in a single request
+  const MAX_MESSAGES = 10
+
   try {
-    const body = await readBody(req)
-    let isStream = false
-    try { isStream = !!JSON.parse(body).stream } catch { /* ignore */ }
+    const rawBody = await readBody(req)
+    let parsed
+    try { parsed = JSON.parse(rawBody) } catch {
+      Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+      res.setHeader('Content-Type', 'application/json')
+      res.statusCode = 400
+      return res.end(JSON.stringify({ error: 'Invalid JSON body' }))
+    }
+
+    // Validate model
+    if (!parsed.model || !ALLOWED_MODELS.has(parsed.model)) {
+      Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+      res.setHeader('Content-Type', 'application/json')
+      res.statusCode = 400
+      return res.end(JSON.stringify({ error: 'Modelo no permitido' }))
+    }
+
+    // Enforce token cap
+    if (!parsed.max_tokens || parsed.max_tokens > MAX_TOKENS_CAP) {
+      parsed.max_tokens = MAX_TOKENS_CAP
+    }
+
+    // Enforce messages limit
+    if (Array.isArray(parsed.messages) && parsed.messages.length > MAX_MESSAGES) {
+      Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v))
+      res.setHeader('Content-Type', 'application/json')
+      res.statusCode = 400
+      return res.end(JSON.stringify({ error: 'Demasiados mensajes en el request' }))
+    }
+
+    const isStream = !!parsed.stream
+    const body = JSON.stringify(parsed)
 
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
