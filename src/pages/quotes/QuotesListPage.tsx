@@ -354,7 +354,6 @@ export function QuotesListPage() {
                 const quoteData = row.data as Quote | undefined
                 const clientName = quoteData?.client?.name ?? '—'
                 const total = row.total ?? quoteData?.totals?.total ?? 0
-                const sym = row.currency === 'USD' ? 'U$S ' : '$ '
                 const vendorName = isAdmin && row.user_id ? nameById(row.user_id) : ''
 
                 return (
@@ -371,8 +370,8 @@ export function QuotesListPage() {
                       <StatusIcon size={12} className={status.variant === 'verde' ? 'text-[#22C55E]' : status.variant === 'rojo' ? 'text-[#EF4444]' : 'text-[#94A3B8]'} />
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
-                    <span className="text-[11px] text-[#64748B]">{row.currency}</span>
-                    <span className="text-[13px] text-[#0F172A] font-semibold">{sym}{fmt(total)}</span>
+                    <span className="text-[11px] text-[#64748B]">ARS</span>
+                    <span className="text-[13px] text-[#0F172A] font-semibold">$ {fmt(total)}</span>
                     <span className="text-[11px] text-[#64748B]">{fmtDate(row.created_at)}</span>
                     <div className="flex items-center gap-1 justify-end">
                       <RowActions
@@ -400,8 +399,6 @@ export function QuotesListPage() {
                 const quoteData = row.data as Quote | undefined
                 const clientName = quoteData?.client?.name ?? '—'
                 const total = row.total ?? quoteData?.totals?.total ?? 0
-                const sym = row.currency === 'USD' ? 'U$S ' : '$ '
-
                 const vendorNameMobile = isAdmin && row.user_id ? nameById(row.user_id) : ''
 
                 return (
@@ -421,7 +418,7 @@ export function QuotesListPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-[16px] font-bold text-[#0F172A]">{sym}{fmt(total)}</div>
+                        <div className="text-[16px] font-bold text-[#0F172A]">$ {fmt(total)}</div>
                         <div className="text-[11px] text-[#94A3B8] mt-0.5">{fmtDate(row.created_at)}</div>
                       </div>
                       <RowActions
