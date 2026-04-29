@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { devtools, persist } from 'zustand/middleware'
 import type {
   Quote, QuoteItem, QuoteDiscount, PaymentCondition,
   QuoteTotals, QuoteClient, QuoteTax, QuoteDelivery, PaymentConditionTemplate,
@@ -9,11 +9,13 @@ import type {
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
-const newQuote = (): Quote => ({
+const fmtNum = (n: number) => `COT-${String(n).padStart(4, '0')}`
+
+const newQuote = (num = 1): Quote => ({
   id: uid(),
   tenant_id: '',
   seller_id: '',
-  quote_number: `COT-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+  quote_number: fmtNum(num),
   status: 'draft',
   client: { name: '', province: '', city: '' },
   currency: 'ARS' as const,  // always ARS — USD shown as secondary reference via exchange_rate
@@ -121,6 +123,7 @@ export function computeTotals(quote: Quote): QuoteTotals {
 interface QuoteStore {
   quote: Quote
   totals: QuoteTotals
+  nextQuoteNumber: number   // persisted counter — always increments
 
   // Quote-level actions
   resetQuote: () => void
@@ -162,18 +165,21 @@ interface QuoteStore {
 
 export const useQuoteStore = create<QuoteStore>()(
   devtools(
+    persist(
     (set, get) => {
       const recompute = (q: Quote): Quote => ({ ...q, totals: computeTotals(q), updated_at: new Date().toISOString() })
       const upd = (patch: Partial<Quote>) => set(s => ({ quote: recompute({ ...s.quote, ...patch }), totals: computeTotals({ ...s.quote, ...patch }) }))
 
-      const initial = newQuote()
+      const initial = newQuote(1)
       return {
         quote: initial,
         totals: computeTotals(initial),
+        nextQuoteNumber: 2,
 
         resetQuote: () => {
-          const q = newQuote()
-          set({ quote: q, totals: computeTotals(q) })
+          const num = get().nextQuoteNumber
+          const q = newQuote(num)
+          set({ quote: q, totals: computeTotals(q), nextQuoteNumber: num + 1 })
         },
 
         setClient: (client) => upd({ client: { ...get().quote.client, ...client } }),
@@ -256,6 +262,10 @@ export const useQuoteStore = create<QuoteStore>()(
         },
       }
     },
+    {
+      name: 'quote-counter',
+      partialize: (s) => ({ nextQuoteNumber: s.nextQuoteNumber }),
+    }),
     { name: 'QuoteStore' }
   )
 )

@@ -580,12 +580,13 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
       }
     }
 
-    // Save storage path via API (service role bypasses RLS)
-    await fetch('/api/share', {
+    // Register path server-side (fire-and-forget — don't block the UI)
+    fetch('/api/share', {
       method: 'POST',
+      signal: AbortSignal.timeout(10000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quote_number: quote.quote_number, storage_path: path, tenant_id: session.user.id }),
-    })
+    }).catch(() => {})
 
     const shortUrl = `${window.location.origin}/api/share?q=${encodeURIComponent(quote.quote_number)}`
     return { ok: true, url: shortUrl }
