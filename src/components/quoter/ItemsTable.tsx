@@ -22,12 +22,10 @@ export function ItemsTable({ priceListId }: { priceListId?: string | null }) {
   // If a price list is selected, only show products from that list
   const allProducts = priceListId ? getProductsByList(priceListId) : getAllProducts()
 
-  /** Convierte un precio al currency de la cotización */
+  /** Convierte un precio a ARS — nunca convierte ARS→USD */
   function convertPrice(price: number, fromCurrency: 'USD' | 'ARS'): number {
-    if (fromCurrency === currency) return price
-    if (fromCurrency === 'USD' && currency === 'ARS') return Math.round(price * exchange_rate)
-    if (fromCurrency === 'ARS' && currency === 'USD') return Math.round((price / exchange_rate) * 100) / 100
-    return price
+    if (fromCurrency === 'ARS') return price
+    return exchange_rate > 0 ? Math.round(price * exchange_rate) : price
   }
 
   const handleProductSelect = (itemId: string, productId: string) => {

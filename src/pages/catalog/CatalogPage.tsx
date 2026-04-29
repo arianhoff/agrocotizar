@@ -61,7 +61,7 @@ function NewPriceListModal({ onClose }: { onClose: () => void }) {
     if (!form.brand || !form.name) return
     const pl = addPriceList({
       tenant_id: '*', is_active: true,
-      brand: form.brand, name: form.name, currency: 'USD' as 'USD' | 'ARS',
+      brand: form.brand, name: form.name, currency: 'ARS' as 'USD' | 'ARS',
       valid_from: form.valid_from, iva_included: form.iva_included, iva_rate: form.iva_rate,
     })
     setActivePriceListId(pl.id)
@@ -1221,7 +1221,7 @@ function PaymentConditionsImportReview({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export function CatalogPage() {
-  const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition, syncAll } = useCatalogStore()
+  const { priceLists, activePriceListId, setActivePriceListId, getProductsByList, addProduct, updateProduct, updatePriceList, addOption, updateOptionPrice, options: storeOptions, addPaymentCondition, syncAll } = useCatalogStore()
   const { plan, isActive } = useSubscriptionStore()
   const [showUpgrade, setShowUpgrade] = useState(false)
   const [showNewModal, setShowNewModal] = useState(false)
@@ -1312,6 +1312,14 @@ export function CatalogPage() {
 
   function handleApplyDiffs(selectedProducts: ProductDiff[], selectedOptions: OptionDiff[]) {
     if (!activeList) return
+
+    // Update price list currency based on dominant currency of extracted products
+    const arsCount = selectedProducts.filter(d => d.extracted.currency === 'ARS').length
+    const usdCount = selectedProducts.length - arsCount
+    const dominantCurrency: 'USD' | 'ARS' = usdCount > arsCount ? 'USD' : 'ARS'
+    if (dominantCurrency !== activeList.currency) {
+      updatePriceList(activeList.id, { currency: dominantCurrency })
+    }
 
     // Apply product changes
     for (const d of selectedProducts) {
