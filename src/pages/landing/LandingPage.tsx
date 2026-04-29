@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HighlightedText } from '../../components/ui/highlighted-text'
+import logoUrl from '../../assets/ca.svg'
 import martinImg from '../../assets/Gemini_Generated_Image_i3dgw0i3dgw0i3dg.png'
 import federicoImg from '../../assets/Gemini_Generated_Image_lkn77klkn77klkn7.png'
 import carlaImg from '../../assets/Gemini_Generated_Image_cr07qncr07qncr07.png'
@@ -204,8 +205,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         .lp-nav-spacer { height: 64px; }
         .lp-nav.scrolled { border-bottom-color: #E7EBE8; }
         .lp-nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-        .lp-logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 18px; letter-spacing: -0.01em; color: #0E1513; }
-        .lp-logo-mark { width: 28px; height: 28px; border-radius: 7px; background: #3FA34D; display: grid; place-items: center; color: white; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+        .lp-logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -0.01em; color: #0E1513; }
+        .lp-logo img { height: 30px; width: auto; flex-shrink: 0; display: block; }
         .lp-nav-links { display: flex; gap: 32px; align-items: center; font-size: 14px; color: #394742; }
         .lp-nav-links button { color: #394742; font-size: 14px; padding: 4px 0; }
         .lp-nav-links button:hover { color: #0E1513; }
@@ -465,7 +466,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         <nav className={`lp-nav${scrolled ? ' scrolled' : ''}`}>
           <div className="lp-container lp-nav-inner">
             <button onClick={() => { window.scrollTo({top:0,behavior:'smooth'}); setMenuOpen(false); }} className="lp-logo">
-              <span className="lp-logo-mark">C</span>
+              <img src={logoUrl} alt="Cotizagro"/>
               Cotizagro
             </button>
             <div className="lp-nav-links">
@@ -853,7 +854,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
             <div className="lp-footer-grid">
               <div className="lp-footer-col">
                 <div className="lp-logo" style={{marginBottom:16}}>
-                  <span className="lp-logo-mark">C</span>
+                  <img src={logoUrl} alt="Cotizagro"/>
                   Cotizagro
                 </div>
                 <p style={{margin:0,maxWidth:280,fontSize:14}}>La herramienta de cotizaciones hecha para el campo argentino.</p>
