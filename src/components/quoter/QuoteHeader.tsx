@@ -315,7 +315,13 @@ export function QuoteHeader() {
       return (
         <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-[#F59E0B]/30 bg-[#FFFBEB]">
           <Info size={13} className="text-[#F59E0B] shrink-0" />
-          <span className="text-[11px] text-[#92400E]">{bcraState.message}</span>
+          <span className="text-[11px] text-[#92400E] flex-1">{bcraState.message} Probá de nuevo en unos instantes.</span>
+          <button
+            onClick={() => { if (client.cuit) { setBcraState({ status: 'loading' }); checkBCRA(client.cuit).then(setBcraState) } }}
+            className="text-[10px] font-semibold text-[#D97706] hover:text-[#92400E] underline cursor-pointer whitespace-nowrap"
+          >
+            Reintentar
+          </button>
         </div>
       )
     }

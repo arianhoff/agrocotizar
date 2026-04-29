@@ -565,12 +565,18 @@ export function CUITPage() {
             {/* BCRA — error */}
             {result.bcra === 'error' && (
               <Card>
-                <div className="flex items-center gap-3">
-                  <AlertCircle size={18} className="text-[#F59E0B] shrink-0" />
-                  <div>
+                <div className="flex items-start gap-3">
+                  <AlertCircle size={18} className="text-[#F59E0B] shrink-0 mt-0.5" />
+                  <div className="flex-1">
                     <div className="text-[13px] font-medium text-[#92400E]">No se pudo consultar el BCRA</div>
-                    <div className="text-[12px] text-[#64748B]">{result.bcraError}</div>
+                    <div className="text-[12px] text-[#64748B]">Probá de nuevo en unos instantes.</div>
                   </div>
+                  <button
+                    onClick={handleSearch}
+                    className="text-[11px] font-semibold text-[#D97706] hover:text-[#92400E] underline cursor-pointer whitespace-nowrap"
+                  >
+                    Reintentar
+                  </button>
                 </div>
               </Card>
             )}

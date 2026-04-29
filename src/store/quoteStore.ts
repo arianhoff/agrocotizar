@@ -124,6 +124,7 @@ interface QuoteStore {
   quote: Quote
   totals: QuoteTotals
   nextQuoteNumber: number   // persisted counter — always increments
+  lastExchangeRate: number  // persisted — restores TC on page reload
 
   // Quote-level actions
   resetQuote: () => void
@@ -175,6 +176,7 @@ export const useQuoteStore = create<QuoteStore>()(
         quote: initial,
         totals: computeTotals(initial),
         nextQuoteNumber: 2,
+        lastExchangeRate: 1150,
 
         resetQuote: () => {
           const num = get().nextQuoteNumber
@@ -184,7 +186,10 @@ export const useQuoteStore = create<QuoteStore>()(
 
         setClient: (client) => upd({ client: { ...get().quote.client, ...client } }),
         setCurrency: (currency) => upd({ currency }),
-        setExchangeRate: (exchange_rate) => upd({ exchange_rate }),
+        setExchangeRate: (exchange_rate) => set(s => {
+          const q = recompute({ ...s.quote, exchange_rate })
+          return { quote: q, totals: computeTotals(q), lastExchangeRate: exchange_rate }
+        }),
         setValidDays: (valid_days) => upd({ valid_days }),
         setNotes: (notes) => upd({ notes }),
         setQuoteNumber: (quote_number) => upd({ quote_number }),
@@ -264,7 +269,13 @@ export const useQuoteStore = create<QuoteStore>()(
     },
     {
       name: 'quote-counter',
-      partialize: (s) => ({ nextQuoteNumber: s.nextQuoteNumber }),
+      partialize: (s) => ({ nextQuoteNumber: s.nextQuoteNumber, lastExchangeRate: s.lastExchangeRate }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.lastExchangeRate && state.lastExchangeRate > 100) {
+          state.quote = { ...state.quote, exchange_rate: state.lastExchangeRate }
+          state.totals = computeTotals(state.quote)
+        }
+      },
     }),
     { name: 'QuoteStore' }
   )
