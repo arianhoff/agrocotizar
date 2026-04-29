@@ -26,10 +26,16 @@ const Group    = (p: React.SVGProps<SVGSVGElement>) => <svg width="20" height="2
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
-  const [scrolled, setScrolled] = useState(false)
-  const [faqOpen, setFaqOpen]   = useState<number>(0)
-  const [annual, setAnnual]     = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled]   = useState(false)
+  const [faqOpen, setFaqOpen]     = useState<number>(0)
+  const [annual, setAnnual]       = useState(false)
+  const [menuOpen, setMenuOpen]   = useState(false)
+  const [loggingIn, setLoggingIn] = useState(false)
+
+  function handleLogin(plan?: string) {
+    setLoggingIn(true)
+    onLogin(plan)
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -352,6 +358,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         .lp-respond-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; padding: 6px 10px; background: rgba(63,163,77,.15); border: 1px solid rgba(63,163,77,.25); border-radius: 999px; font-size: 12px; color: rgba(255,255,255,.65); }
         .lp-respond-dot { width: 6px; height: 6px; border-radius: 50%; background: #3FA34D; animation: lp-pulse 2s ease-in-out infinite; flex-shrink: 0; }
         @keyframes lp-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+        .lp-spin { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: lp-spin .7s linear infinite; }
+        @keyframes lp-spin { to { transform: rotate(360deg); } }
 
         /* ── Footer ── */
         footer.lp-footer { padding: 48px 0 32px; border-top: 1px solid #E7EBE8; color: #6B7872; font-size: 14px; }
@@ -405,8 +413,10 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               ))}
             </div>
             <div className="lp-nav-cta">
-              <button onClick={() => onLogin()} className="lp-btn lp-btn-ghost">Iniciar sesión</button>
-              <button onClick={() => onLogin()} className="lp-btn lp-btn-primary">Crear cuenta <Arrow/></button>
+              <button onClick={() => handleLogin()} className="lp-btn lp-btn-ghost">Iniciar sesión</button>
+              <button onClick={() => handleLogin()} className="lp-btn lp-btn-primary" disabled={loggingIn}>
+                {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta <Arrow/></>}
+              </button>
               <button className={`lp-hamburger${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(!menuOpen)} aria-label="Menú">
                 <span className="lp-hamburger-bar"/><span className="lp-hamburger-bar"/><span className="lp-hamburger-bar"/>
               </button>
@@ -417,8 +427,10 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               <button key={id} className="lp-mobile-menu-link" onClick={() => scrollTo(id)}>{label}</button>
             ))}
             <div className="lp-mobile-menu-cta">
-              <button onClick={() => { onLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-primary" style={{width:'100%',justifyContent:'center'}}>Crear cuenta gratis <Arrow/></button>
-              <button onClick={() => { onLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-outline" style={{width:'100%',justifyContent:'center'}}>Iniciar sesión</button>
+              <button onClick={() => { handleLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-primary" style={{width:'100%',justifyContent:'center'}} disabled={loggingIn}>
+                {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta gratis <Arrow/></>}
+              </button>
+              <button onClick={() => { handleLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-outline" style={{width:'100%',justifyContent:'center'}}>Iniciar sesión</button>
             </div>
           </div>
         </nav>
@@ -436,7 +448,9 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               <h1>Cotizá tus máquinas <HighlightedText delay={0.2}>10× más rápido</HighlightedText></h1>
               <p className="lp-hero-sub">Cargá tu lista de precios y nuestra IA la pasa en limpio. Mandá cotizaciones profesionales en minutos, no en horas.</p>
               <div className="lp-hero-ctas">
-                <button onClick={() => onLogin()} className="lp-btn lp-btn-primary lp-btn-lg">Crear cuenta gratis <Arrow/></button>
+                <button onClick={() => handleLogin()} className="lp-btn lp-btn-primary lp-btn-lg" disabled={loggingIn}>
+                  {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta gratis <Arrow/></>}
+                </button>
                 <button onClick={() => scrollTo('how')} className="lp-btn lp-btn-outline lp-btn-lg">Ver cómo funciona</button>
               </div>
               <div className="lp-hero-trust">
@@ -565,7 +579,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                       {s.tags.map((tag,j) => <span key={j} className={`lp-step-tag${tag.green?' green':''}`}>{tag.t}</span>)}
                     </div>
                     <div className="lp-step-action">
-                      <button className="lp-btn lp-step-action-btn" onClick={() => onLogin()}><Arrow/> {s.cta}</button>
+                      <button className="lp-btn lp-step-action-btn" onClick={() => handleLogin()}><Arrow/> {s.cta}</button>
                     </div>
                   </div>
                   <div className="lp-step-body">
@@ -674,14 +688,15 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                     {p.features.map((f,j) => <li key={j}><Check/>{f}</li>)}
                   </ul>
                   <button
-                    onClick={() => onLogin(p.intentPrimary)}
+                    onClick={() => handleLogin(p.intentPrimary)}
                     className={`lp-btn lp-btn-lg ${p.featured?'lp-btn-primary':'lp-btn-outline'}`}
                     style={{width:'100%'}}
+                    disabled={loggingIn}
                   >
-                    {p.cta}
+                    {loggingIn && p.featured ? <span className="lp-spin"/> : p.cta}
                   </button>
                   {p.intentSecondary && (
-                    <button onClick={() => onLogin(p.intentSecondary)} className="lp-plan-secondary">
+                    <button onClick={() => handleLogin(p.intentSecondary)} className="lp-plan-secondary">
                       Contratar sin prueba
                     </button>
                   )}
@@ -723,8 +738,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                   <h2>Empezá a cotizar<br/><HighlightedText delay={0.1}>10× más rápido</HighlightedText> hoy.</h2>
                   <p className="lp-cta-sub">14 días de prueba gratis. Sin tarjeta de crédito.<br/>Cancelás cuando quieras, sin preguntas.</p>
                   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                    <button onClick={() => onLogin()} className="lp-btn lp-btn-primary lp-btn-lg">
-                      Crear cuenta gratis <Arrow/>
+                    <button onClick={() => handleLogin()} className="lp-btn lp-btn-primary lp-btn-lg" disabled={loggingIn}>
+                      {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta gratis <Arrow/></>}
                     </button>
                     <button onClick={() => scrollTo('pricing')} className="lp-btn lp-btn-outline lp-btn-lg">
                       Ver planes
@@ -797,8 +812,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               </div>
               <div className="lp-footer-col">
                 <h4>Cuenta</h4>
-                <button onClick={() => onLogin()}>Iniciar sesión</button>
-                <button onClick={() => onLogin()}>Crear cuenta</button>
+                <button onClick={() => handleLogin()}>Iniciar sesión</button>
+                <button onClick={() => handleLogin()}>Crear cuenta</button>
               </div>
               <div className="lp-footer-col">
                 <h4>Contacto</h4>

@@ -294,6 +294,11 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id ?? null)
       setChecking(false)
+      const splash = document.getElementById('splash')
+      if (splash) {
+        splash.style.opacity = '0'
+        setTimeout(() => splash.remove(), 380)
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {

@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useUploadStore } from '@/store/uploadStore'
 import { Trash2, Plus, Pencil, Check, X, TrendingUp, Package, Loader2, FileImage, CreditCard, Upload, RefreshCw } from 'lucide-react'
 import { useCatalogStore, type CsvRow } from '@/store/catalogStore'
 import { dataSyncBus } from '@/App'
@@ -1234,17 +1235,26 @@ export function CatalogPage() {
     setShowNewModal(true)
   }
   const [showAdjustModal, setShowAdjustModal] = useState(false)
-  const [diff, setDiff] = useState<{ catalog: CatalogDiff; paymentConditions: ExtractedPaymentCondition[] } | null>(null)
-  const [uploadStep, setUploadStep] = useState<string | null>(null)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [streamingProgress, setStreamingProgress] = useState<ExtractionProgress | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ── Payment-conditions-only upload ──
-  const [pcUploading, setPcUploading] = useState(false)
-  const [pcError, setPcError] = useState<string | null>(null)
-  const [pendingPaymentConditions, setPendingPaymentConditions] = useState<ExtractedPaymentCondition[] | null>(null)
   const pcFileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Upload state persists in store so processing continues when navigating away ──
+  const {
+    step: uploadStep, error: uploadError, diff, streamingProgress,
+    pcUploading, pcError, pendingPaymentConditions,
+    startUpload, setStep: setUploadStep, setError: setUploadError,
+    setDiff, setStreamingProgress, setPcUploading, setPcError,
+    setPendingPaymentConditions, clear: clearUpload,
+  } = useUploadStore()
+
+  // Auto-show diff modal when upload finishes and user is on this list
+  const activeListId = activePriceListId
+  const uploadListId = useUploadStore(s => s.listId)
+  useEffect(() => {
+    if (diff && uploadListId === activeListId) {
+      // diff is ready — modal will render automatically via the diff check below
+    }
+  }, [diff, uploadListId, activeListId])
 
   const uploading = uploadStep !== null
 
@@ -1270,8 +1280,7 @@ export function CatalogPage() {
       return
     }
 
-    setUploadStep(`Leyendo archivo (${fileSizeMB.toFixed(1)} MB)...`)
-    setUploadError(null)
+    startUpload(activeList.id, `Leyendo archivo (${fileSizeMB.toFixed(1)} MB)...`)
     try {
       const { base64, mediaType } = await readFileAsBase64(file)
       const needsSplit = isPDF && fileSizeMB > 3
@@ -1373,7 +1382,7 @@ export function CatalogPage() {
       }
     }
 
-    setDiff(null)
+    clearUpload()
   }
 
   async function handlePaymentConditionsUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1721,7 +1730,7 @@ export function CatalogPage() {
         <DiffModal
           diff={diff.catalog}
           onApply={handleApplyDiffs}
-          onClose={() => setDiff(null)}
+          onClose={() => clearUpload()}
         />
       )}
     </>
