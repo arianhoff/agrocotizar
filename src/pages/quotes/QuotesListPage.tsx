@@ -286,7 +286,7 @@ export function QuotesListPage() {
         title="Cotizaciones"
         subtitle="Historial completo"
         actions={
-          <Link to="/quoter">
+          <Link to="/quoter?new">
             <Button variant="primary" className="flex items-center gap-1.5">
               <PlusCircle size={14} />
               <span className="hidden sm:inline">Nueva Cotización</span>
@@ -326,7 +326,7 @@ export function QuotesListPage() {
             <p className="text-[12px] text-[#94A3B8] mt-1">
               {activeStatus !== 'all' ? `Sin cotizaciones en estado "${STATUS_CONFIG[activeStatus]?.label}"` : 'Creá tu primera cotización'}
             </p>
-            <Link to="/quoter" className="inline-block mt-4">
+            <Link to="/quoter?new" className="inline-block mt-4">
               <Button variant="primary">+ Nueva Cotización</Button>
             </Link>
           </Card>

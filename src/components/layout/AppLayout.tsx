@@ -11,7 +11,7 @@ import { useSubscriptionStore } from '@/store/subscriptionStore'
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/quoter',    icon: PlusCircle,      label: 'Nueva Cotización' },
+  { to: '/quoter?new', icon: PlusCircle,      label: 'Nueva Cotización' },
   { to: '/quotes',    icon: FileText,        label: 'Cotizaciones' },
   { to: '/crm',       icon: CalendarCheck,   label: 'Seguimientos' },
   { to: '/catalog',   icon: Package,         label: 'Lista de precios' },

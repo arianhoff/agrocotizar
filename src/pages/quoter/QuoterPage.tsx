@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { QuoteHeader } from '@/components/quoter/QuoteHeader'
 import { ItemsTable } from '@/components/quoter/ItemsTable'
@@ -176,7 +177,16 @@ function ListPicker({
 // ─── Main QuoterPage ──────────────────────────────────────────────────────────
 
 export function QuoterPage() {
-  const { quote, setNotes, initFromPriceList } = useQuoteStore()
+  const { quote, setNotes, initFromPriceList, resetQuote } = useQuoteStore()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.has('new')) {
+      resetQuote()
+      setSearchParams({}, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const totals = computeTotals(quote)
   const sym = (n: number) => fmtCurrency(n, quote.currency)
   const [showMobileSummary, setShowMobileSummary] = useState(false)

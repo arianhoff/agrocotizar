@@ -131,7 +131,7 @@ function ReminderCard({ fu }: { fu: FollowUp }) {
 // ─── Quick access buttons ─────────────────────────────────────────────────────
 
 const QUICK = [
-  { to: '/quoter',  label: 'Nueva cotización', icon: PlusCircle,  color: 'bg-[#22C55E]' },
+  { to: '/quoter?new', label: 'Nueva cotización', icon: PlusCircle, color: 'bg-[#22C55E]' },
   { to: '/quotes',  label: 'Cotizaciones',     icon: FileText,    color: 'bg-[#3B82F6]' },
   { to: '/crm',     label: 'Seguimientos',     icon: Bell,        color: 'bg-[#8B5CF6]' },
   { to: '/clients', label: 'Clientes',         icon: Users,       color: 'bg-[#F59E0B]' },
@@ -245,7 +245,7 @@ export function DashboardPage() {
               <div className="flex flex-col items-center justify-center py-10 gap-3">
                 <FileText size={28} className="text-[#CBD5E1]" />
                 <p className="text-[13px] text-[#94A3B8]">Sin cotizaciones todavía</p>
-                <Link to="/quoter" className="text-[12px] text-[#22C55E] font-medium hover:underline">
+                <Link to="/quoter?new" className="text-[12px] text-[#22C55E] font-medium hover:underline">
                   Crear primera cotización →
                 </Link>
               </div>
