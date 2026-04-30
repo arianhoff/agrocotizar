@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { Eye, EyeOff, Tractor, Mail, Lock, UserPlus, LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, UserPlus, LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
+import caLogo from '@/assets/ca.svg'
 import { supabase } from '@/lib/supabase/client'
 
 function GoogleIcon() {
@@ -232,9 +233,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
       <div className="relative w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#22C55E]/15 border border-[#22C55E]/30 mb-5">
-            <Tractor size={28} className="text-[#22C55E]" />
-          </div>
+          <img src={caLogo} alt="Cotizagro" className="w-20 h-auto mx-auto mb-5 brightness-0 invert" />
           <div className="text-[28px] font-bold text-white tracking-tight leading-none">
             Cotiz<span className="text-[#22C55E]">agro</span>
           </div>
