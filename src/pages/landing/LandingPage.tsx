@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { HighlightedText } from '../../components/ui/highlighted-text'
 import logoUrl from '../../assets/ca.svg'
+import headerImg from '../../assets/header.svg'
 import step1Img from '../../assets/step-1-lista.png'
 import step2Img from '../../assets/step-2-ia.png'
 import step3Img from '../../assets/step-3-cotizacion.png'
@@ -205,25 +206,11 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
         .lp-trust-stat-val { font-size: 18px; font-weight: 600; color: #0E1513; letter-spacing: -0.02em; line-height: 1.1; }
         .lp-trust-stat-label { font-size: 12px; color: #6B7872; }
         .lp-trust-divider { width: 1px; height: 32px; background: #E7EBE8; flex-shrink: 0; }
-        @media (max-width: 960px) { .lp-mock-wrap { display: none; } }
-
-        /* Mock */
-        .lp-mock { background: white; border: 1px solid #E7EBE8; border-radius: 16px; box-shadow: 0 1px 2px rgba(14,21,19,.04), 0 20px 40px -16px rgba(14,21,19,.14), 0 40px 80px -30px rgba(31,95,63,.18); overflow: hidden; }
-        .lp-mock-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid #E7EBE8; background: #FAFAF7; }
-        .lp-mock-dot { width: 10px; height: 10px; border-radius: 50%; background: #DADFD9; }
-        .lp-mock-url { margin-left: 12px; font-family: ui-monospace, monospace; font-size: 11px; color: #6B7872; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .lp-mock-body { padding: 20px; }
-        .lp-mock-title { font-size: 13px; color: #6B7872; font-family: ui-monospace, monospace; margin-bottom: 10px; }
-        .lp-mock-row { display: grid; grid-template-columns: 1.2fr 0.8fr 0.7fr 0.6fr; gap: 12px; padding: 12px 0; border-bottom: 1px dashed #E7EBE8; font-size: 14px; align-items: center; }
-        .lp-mock-row:last-child { border-bottom: none; }
-        .lp-mock-row.head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6B7872; font-weight: 500; padding: 8px 0; border-bottom: 1px solid #E7EBE8; }
-        .lp-mock-price { font-weight: 500; color: #0E1513; }
-        .lp-mock-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #EAF5EC; color: #1F5F3F; font-weight: 500; }
-        .lp-ai-card { position: absolute; right: -20px; bottom: -24px; background: white; border: 1px solid #E7EBE8; border-radius: 14px; padding: 14px 16px; box-shadow: 0 10px 30px -12px rgba(14,21,19,.2); display: flex; align-items: center; gap: 12px; font-size: 13px; max-width: 280px; }
-        @media (max-width: 500px) { .lp-ai-card { right: 12px; bottom: -16px; } }
-        .lp-ai-icon { width: 32px; height: 32px; border-radius: 10px; background: #3FA34D; display: grid; place-items: center; color: white; flex-shrink: 0; }
-        .lp-ai-label { color: #6B7872; font-size: 11px; }
-        .lp-ai-val { color: #0E1513; font-weight: 500; }
+        /* Hero image */
+        .lp-hero-img-wrap { display: flex; align-items: center; justify-content: center; }
+        .lp-hero-img { width: 100%; height: auto; max-width: 560px; filter: drop-shadow(0 24px 48px rgba(14,21,19,.13)); }
+        @media (max-width: 960px) { .lp-hero-img-wrap { max-width: 480px; margin: 0 auto; } }
+        @media (max-width: 480px) { .lp-hero-img-wrap { max-width: 340px; } }
 
         /* ── Logos ── */
         .lp-logos-row { padding: 40px 0; border-top: 1px solid #E7EBE8; border-bottom: 1px solid #E7EBE8; background: #FAFAF7; overflow: hidden; }
@@ -479,39 +466,8 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
                 </div>
               </div>
             </div>
-            <div className="lp-mock-wrap" style={{position:'relative', paddingBottom: 28}}>
-              <div className="lp-mock">
-                <div className="lp-mock-bar">
-                  <div className="lp-mock-dot"/><div className="lp-mock-dot"/><div className="lp-mock-dot"/>
-                  <span className="lp-mock-url">cotizagro.com.ar/cotizaciones/nueva</span>
-                </div>
-                <div className="lp-mock-body">
-                  <div className="lp-mock-title">Cotización #2847 · Campo Los Álamos</div>
-                  <div className="lp-mock-row head"><div>Producto</div><div>Marca</div><div style={{textAlign:'right'}}>Precio</div><div/></div>
-                  {[
-                    ['Cosechadora 9500','John Deere','USD 285.000','Stock'],
-                    ['Tractor 7230J','John Deere','USD 142.500','Stock'],
-                    ['Sembradora VT','Agrometal','USD 68.900','Pedido'],
-                    ['Pulverizadora 3200','Metalfor','USD 94.200','Stock'],
-                  ].map(([prod,brand,price,status]) => (
-                    <div className="lp-mock-row" key={prod}>
-                      <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{prod}</div>
-                      <div style={{color:'#6B7872',fontSize:12}}>{brand}</div>
-                      <div className="lp-mock-price" style={{textAlign:'right',fontSize:12}}>{price}</div>
-                      <div style={{textAlign:'right'}}>
-                        <span className="lp-mock-chip" style={status==='Pedido'?{background:'#FEF3E2',color:'#B6691A'}:undefined}>{status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="lp-ai-card">
-                <div className="lp-ai-icon"><Sparkle/></div>
-                <div>
-                  <div className="lp-ai-label">IA · procesado en</div>
-                  <div className="lp-ai-val">1,2 segundos · 47 productos</div>
-                </div>
-              </div>
+            <div className="lp-hero-img-wrap">
+              <img src={headerImg} alt="Cotizagro app" className="lp-hero-img" />
             </div>
           </div>
         </section>
