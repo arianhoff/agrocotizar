@@ -37,6 +37,11 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
     onLogin(plan)
   }
 
+  function handleSignIn() {
+    setLoggingIn(true)
+    onSignIn()
+  }
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -413,7 +418,9 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
               ))}
             </div>
             <div className="lp-nav-cta">
-              <button onClick={() => onSignIn()} className="lp-btn lp-btn-ghost">Iniciar sesión</button>
+              <button onClick={() => handleSignIn()} className="lp-btn lp-btn-ghost" disabled={loggingIn}>
+                {loggingIn ? <span className="lp-spin"/> : 'Iniciar sesión'}
+              </button>
               <button onClick={() => handleLogin()} className="lp-btn lp-btn-primary" disabled={loggingIn}>
                 {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta <Arrow/></>}
               </button>
@@ -430,7 +437,9 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
               <button onClick={() => { handleLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-primary" style={{width:'100%',justifyContent:'center'}} disabled={loggingIn}>
                 {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta gratis <Arrow/></>}
               </button>
-              <button onClick={() => { onSignIn(); setMenuOpen(false); }} className="lp-btn lp-btn-outline" style={{width:'100%',justifyContent:'center'}}>Iniciar sesión</button>
+              <button onClick={() => { handleSignIn(); setMenuOpen(false); }} className="lp-btn lp-btn-outline" style={{width:'100%',justifyContent:'center'}} disabled={loggingIn}>
+                {loggingIn ? <span className="lp-spin"/> : 'Iniciar sesión'}
+              </button>
             </div>
           </div>
         </nav>
@@ -807,7 +816,7 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
               </div>
               <div className="lp-footer-col">
                 <h4>Cuenta</h4>
-                <button onClick={() => onSignIn()}>Iniciar sesión</button>
+                <button onClick={() => handleSignIn()} disabled={loggingIn}>Iniciar sesión</button>
                 <button onClick={() => handleLogin()}>Crear cuenta</button>
               </div>
               <div className="lp-footer-col">
