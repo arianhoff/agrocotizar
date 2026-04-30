@@ -88,16 +88,10 @@ export function UpgradePrompt({ reason, onClose }: Props) {
 
           <div className="flex flex-col gap-2">
             <button
-              onClick={() => { navigate('/settings?autostart=trial_vendedores'); onClose() }}
+              onClick={() => { navigate('/settings?section=subscription'); onClose() }}
               className="w-full py-2.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <Zap size={13} /> 14 días gratis · sin tarjeta
-            </button>
-            <button
-              onClick={() => { navigate('/settings?section=subscription'); onClose() }}
-              className="w-full py-2 rounded-xl border border-[#E2E8F0] text-[12px] text-[#64748B] hover:bg-[#F8FAFC] transition-all cursor-pointer"
-            >
-              Ver planes
+              <Zap size={13} /> Contratar plan
             </button>
           </div>
         </div>

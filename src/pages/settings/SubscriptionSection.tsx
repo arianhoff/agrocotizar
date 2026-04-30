@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { CreditCard, Check, Star, AlertTriangle, Clock, Loader2, ExternalLink, Zap, Lock } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useSubscriptionStore, PLAN_NAMES, type Plan } from '@/store/subscriptionStore'
@@ -285,8 +285,6 @@ export function SubscriptionSection() {
   // Read URL params
   const searchParams  = new URLSearchParams(window.location.search)
   const paymentResult = searchParams.get('payment') as 'success' | 'failure' | 'pending' | null
-  const autoStart     = searchParams.get('autostart')
-
   // Reload subscription state after successful payment
   useEffect(() => {
     if (paymentResult !== 'success') return
@@ -303,27 +301,6 @@ export function SubscriptionSection() {
     })
   }, [paymentResult])
 
-  // Auto-trigger trial when redirected from landing page plan intent
-  const autoStartFired = useRef(false)
-  useEffect(() => {
-    if (!autoStart || autoStartFired.current) return
-    autoStartFired.current = true
-    window.history.replaceState(null, '', window.location.pathname)
-
-    // Checkout intents — redirect straight to payment
-    const planToCheckout: Exclude<Plan, 'free'> | null =
-      autoStart === 'checkout_vendedores'     ? 'vendedores'     :
-      autoStart === 'checkout_concesionarios' ? 'concesionarios' :
-      null
-
-    if (planToCheckout) {
-      reloadProfile().then(() => handleCheckout(planToCheckout))
-      return
-    }
-
-    // No trial intents — unknown autostart params are ignored
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   async function callApi(body: object): Promise<{ ok: boolean; data: any }> {
     const token = await getToken()
