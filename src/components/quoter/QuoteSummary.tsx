@@ -66,7 +66,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
   const emailBody    = shareUrl
     ? `${shortMsg}\n\nDescargá el PDF desde este enlace:\n${shareUrl}\n\n---\n${buildEmailBody(quote, totals)}`
     : buildEmailBody(quote, totals)
-  const emailHref = `mailto:${quote.client.email ?? ''}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
+  const emailHref = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(quote.client.email ?? '')}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
 
   const handleDownload = async () => {
     if (!fileRef.current) return
@@ -205,6 +205,8 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
               </a>
               <a
                 href={emailHref}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={() => { afterShare(); onClose() }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/30 text-[#3B82F6] text-[12px] font-medium hover:bg-[#3B82F6]/20 transition-colors cursor-pointer no-underline"
               >

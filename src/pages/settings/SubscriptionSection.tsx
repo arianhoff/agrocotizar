@@ -15,7 +15,6 @@ const PLANS_INFO: Array<{
   accent:  boolean
   locked?: boolean
   features: string[]
-  cta:     string
 }> = [
   {
     id:      'vendedores',
@@ -34,7 +33,6 @@ const PLANS_INFO: Array<{
       'Envío por WhatsApp',
       'Soporte por WhatsApp',
     ],
-    cta: '14 días gratis · sin tarjeta',
   },
   {
     id:      'concesionarios',
@@ -51,7 +49,6 @@ const PLANS_INFO: Array<{
       'PDF profesional con logo propio',
       'Soporte prioritario por WhatsApp',
     ],
-    cta: '14 días gratis · sin tarjeta',
   },
 ]
 
@@ -190,20 +187,18 @@ function PlanCard({
   plan,
   currentPlan,
   isActive,
-  onTrial,
   onCheckout,
   loading,
 }: {
   plan:        typeof PLANS_INFO[number]
   currentPlan: Plan
   isActive:    boolean
-  onTrial:     (planId: Exclude<Plan, 'free'>) => void
   onCheckout:  (planId: Exclude<Plan, 'free'>) => void
   loading:     string | null
 }) {
-  const isCurrent = currentPlan === plan.id && isActive
-  const isLoading = loading === plan.id
-  const isLocked  = plan.locked
+  const isCurrent  = currentPlan === plan.id && isActive
+  const isLoading  = loading === plan.id
+  const isLocked   = plan.locked
 
   return (
     <div
@@ -265,33 +260,14 @@ function PlanCard({
           Plan actual
         </div>
       ) : (
-        <div className="space-y-2">
-          {/* Trial CTA — available for all plans when user is on free */}
-          {currentPlan === 'free' && (
-            <button
-              onClick={() => onTrial(plan.id)}
-              disabled={!!loading}
-              className="w-full py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#22C55E]/20"
-            >
-              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-              {isLoading ? 'Activando prueba...' : '14 días gratis · sin tarjeta'}
-            </button>
-          )}
-
-          {/* Pay / Contratar CTA */}
-          <button
-            onClick={() => onCheckout(plan.id)}
-            disabled={!!loading}
-            className={`w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-              currentPlan === 'free'
-                ? 'border border-[#22C55E]/30 text-[#22C55E] hover:bg-[#F0FDF4]'
-                : 'bg-[#22C55E] hover:bg-[#16A34A] text-white shadow-lg shadow-[#22C55E]/20'
-            }`}
-          >
-            {loading === `checkout-${plan.id}` ? <Loader2 size={14} className="animate-spin" /> : <ExternalLink size={13} />}
-            {loading === `checkout-${plan.id}` ? 'Redirigiendo...' : 'Contratar plan'}
-          </button>
-        </div>
+        <button
+          onClick={() => onCheckout(plan.id)}
+          disabled={!!loading}
+          className="w-full py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#22C55E]/20"
+        >
+          {loading === `checkout-${plan.id}` ? <Loader2 size={14} className="animate-spin" /> : <ExternalLink size={13} />}
+          {loading === `checkout-${plan.id}` ? 'Redirigiendo...' : 'Contratar plan'}
+        </button>
       )}
     </div>
   )
@@ -345,18 +321,7 @@ export function SubscriptionSection() {
       return
     }
 
-    // Trial intents — auto-activate free trial
-    const planToTrial: Exclude<Plan, 'free'> | null =
-      autoStart === 'trial_vendedores'     ? 'vendedores'     :
-      autoStart === 'trial_concesionarios' ? 'concesionarios' :
-      null
-
-    if (!planToTrial) return  // Other intents just open the section
-
-    reloadProfile().then(() => {
-      const currentPlan = useSubscriptionStore.getState().plan
-      if (currentPlan === 'free') handleTrial(planToTrial)
-    })
+    // No trial intents — unknown autostart params are ignored
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -386,19 +351,6 @@ export function SubscriptionSection() {
     if (profile) hydrate(profile)
   }
 
-  async function handleTrial(planId: Exclude<Plan, 'free'>) {
-    setLoading(planId)
-    setError(null)
-    try {
-      const { ok, data } = await callApi({ action: 'start_trial', plan: planId })
-      if (!ok) { setError(data.error ?? 'No se pudo activar el período de prueba.'); return }
-      await reloadProfile()
-    } catch (e: any) {
-      setError(`Error de conexión: ${e?.message ?? 'desconocido'}`)
-    } finally {
-      setLoading(null)
-    }
-  }
 
   async function handleCheckout(planId: Exclude<Plan, 'free'>) {
     setLoading(`checkout-${planId}`)
@@ -483,7 +435,7 @@ export function SubscriptionSection() {
                 plan={p}
                 currentPlan={plan}
                 isActive={isActive}
-                onTrial={handleTrial}
+
                 onCheckout={handleCheckout}
                 loading={loading}
               />
@@ -510,7 +462,7 @@ export function SubscriptionSection() {
                 plan={p}
                 currentPlan={plan}
                 isActive={isActive}
-                onTrial={handleTrial}
+
                 onCheckout={handleCheckout}
                 loading={loading}
               />

@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase/client'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
+export type ClientType = 'productor' | 'empresa' | 'contratista' | 'acopio' | 'distribuidor' | 'particular'
+
 export interface Client {
   id: string
   name: string
   cuit?: string
+  type?: ClientType
   province?: string
   city?: string
   phone?: string
@@ -21,6 +24,17 @@ export interface Client {
   updated_at: string
 }
 
+export interface ClientImportRow {
+  name: string
+  cuit?: string
+  type?: string
+  phone?: string
+  email?: string
+  province?: string
+  city?: string
+  notes?: string
+}
+
 interface ClientStore {
   clients: Client[]
   /** Upsert by CUIT (if present) or name */
@@ -31,15 +45,17 @@ interface ClientStore {
   updateClient: (id: string, patch: Partial<Client>) => void
   deleteClient: (id: string) => void
   getClient: (id: string) => Client | undefined
+  /** Bulk import: adds new clients and updates existing ones matched by CUIT */
+  importBulk: (rows: ClientImportRow[]) => { added: number; updated: number }
   hydrate: (clients: Client[]) => void
   clear: () => void
 }
 
 // Fire-and-forget Supabase write — never throws
 function syncClient(client: Client) {
-  const { id, name, cuit, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date } = client
+  const { id, name, cuit, type, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date } = client
   supabase.from('clients')
-    .upsert({ id, name, cuit, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date })
+    .upsert({ id, name, cuit, type, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date })
     .then()
 }
 
@@ -108,6 +124,58 @@ export const useClientStore = create<ClientStore>()(
       },
 
       getClient: (id) => get().clients.find(c => c.id === id),
+
+      importBulk: (rows) => {
+        const all = get().clients
+        const now = new Date().toISOString()
+        let added = 0
+        let updated = 0
+        const result = [...all]
+
+        for (const row of rows) {
+          if (!row.name?.trim()) continue
+          const cleanCuit = row.cuit?.replace(/\D/g, '') ?? ''
+          const existingIdx = cleanCuit
+            ? result.findIndex(c => c.cuit?.replace(/\D/g, '') === cleanCuit)
+            : -1
+
+          if (existingIdx >= 0) {
+            // Merge: only fill in fields that are currently empty
+            const c = result[existingIdx]
+            result[existingIdx] = {
+              ...c,
+              phone:    c.phone    || row.phone    || c.phone,
+              email:    c.email    || row.email    || c.email,
+              province: c.province || row.province || c.province,
+              city:     c.city     || row.city     || c.city,
+              notes:    c.notes    || row.notes    || c.notes,
+              updated_at: now,
+            }
+            syncClient(result[existingIdx])
+            updated++
+          } else {
+            const client: Client = {
+              id: uid(),
+              name: row.name.trim(),
+              cuit: row.cuit?.trim() || undefined,
+              phone: row.phone?.trim() || undefined,
+              email: row.email?.trim() || undefined,
+              province: row.province?.trim() || undefined,
+              city: row.city?.trim() || undefined,
+              notes: row.notes?.trim() || undefined,
+              quote_count: 0,
+              created_at: now,
+              updated_at: now,
+            }
+            result.unshift(client)
+            syncClient(client)
+            added++
+          }
+        }
+
+        set({ clients: result })
+        return { added, updated }
+      },
 
       hydrate: (clients) => set({ clients }),
 
