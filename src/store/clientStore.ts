@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase/client'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
+export type ClientType = 'productor' | 'empresa' | 'contratista' | 'acopio' | 'distribuidor' | 'particular'
+
 export interface Client {
   id: string
   name: string
   cuit?: string
+  type?: ClientType
   province?: string
   city?: string
   phone?: string
@@ -24,6 +27,7 @@ export interface Client {
 export interface ClientImportRow {
   name: string
   cuit?: string
+  type?: string
   phone?: string
   email?: string
   province?: string
@@ -49,9 +53,9 @@ interface ClientStore {
 
 // Fire-and-forget Supabase write — never throws
 function syncClient(client: Client) {
-  const { id, name, cuit, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date } = client
+  const { id, name, cuit, type, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date } = client
   supabase.from('clients')
-    .upsert({ id, name, cuit, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date })
+    .upsert({ id, name, cuit, type, province, city, phone, email, notes, quote_count, last_quote_number, last_quote_date })
     .then()
 }
 

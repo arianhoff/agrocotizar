@@ -40,3 +40,4 @@ img/
 
 # AFIP WSAA token cache (contiene credenciales temporales)
 .wsaa-token.json
+tests/.auth/

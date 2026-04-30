@@ -100,16 +100,16 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
       price: `$${prices.vendedores.toFixed(2)}`, origPrice: '$9',
       note: annual ? 'USD / mes · facturado anual' : 'USD / mes · facturación mensual',
       features: ['Cotizaciones ilimitadas','IA ilimitada + importación PDF','Listas de precios ilimitadas','PDF profesional con tu logo','Verificación BCRA ilimitada','CRM y seguimiento automático','Envío por WhatsApp','Soporte por WhatsApp'],
-      cta: 'Empezar 14 días gratis', featured: true,
-      intentPrimary: 'trial_vendedores', intentSecondary: 'checkout_vendedores',
+      cta: 'Contratar ahora', featured: true,
+      intentPrimary: 'checkout_vendedores', intentSecondary: undefined,
     },
     {
       name: 'Concesionarios', desc: 'Para equipos con varios vendedores.',
       price: `$${prices.concesionarios.toFixed(2)}`, origPrice: '$29',
       note: annual ? 'USD / mes · hasta 5 vendedores · anual' : 'USD / mes · hasta 5 vendedores',
       features: ['Todo lo del plan Vendedores','Hasta 5 vendedores en el equipo','Admin ve cotizaciones de todos','Cada vendedor gestiona sus listas','Dashboard gerencial','Soporte prioritario'],
-      cta: 'Empezar 14 días gratis', featured: false,
-      intentPrimary: 'trial_concesionarios', intentSecondary: 'checkout_concesionarios',
+      cta: 'Contratar ahora', featured: false,
+      intentPrimary: 'checkout_concesionarios', intentSecondary: undefined,
     },
   ]
 
@@ -465,8 +465,8 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                 </div>
                 <div className="lp-trust-divider"/>
                 <div className="lp-trust-stat">
-                  <span className="lp-trust-stat-val">14 días</span>
-                  <span className="lp-trust-stat-label">gratis, sin tarjeta</span>
+                  <span className="lp-trust-stat-val">Plan gratis</span>
+                  <span className="lp-trust-stat-label">sin tarjeta</span>
                 </div>
               </div>
             </div>
@@ -679,11 +679,6 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                   </div>
                   <div className="lp-plan-note">{p.note}</div>
                   {p.origPrice && <span className="lp-plan-off">50% OFF lanzamiento</span>}
-                  {p.intentPrimary && (
-                    <div className="lp-plan-no-card">
-                      <Check style={{width:13,height:13}}/> Sin tarjeta de crédito requerida
-                    </div>
-                  )}
                   <ul>
                     {p.features.map((f,j) => <li key={j}><Check/>{f}</li>)}
                   </ul>
@@ -736,7 +731,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                 {/* Left */}
                 <div>
                   <h2>Empezá a cotizar<br/><HighlightedText delay={0.1}>10× más rápido</HighlightedText> hoy.</h2>
-                  <p className="lp-cta-sub">14 días de prueba gratis. Sin tarjeta de crédito.<br/>Cancelás cuando quieras, sin preguntas.</p>
+                  <p className="lp-cta-sub">Empezá gratis, sin tarjeta.<br/>Upgradea cuando necesitás más.</p>
                   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
                     <button onClick={() => handleLogin()} className="lp-btn lp-btn-primary lp-btn-lg" disabled={loggingIn}>
                       {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta gratis <Arrow/></>}
@@ -763,7 +758,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                       <div className="lp-contact-value">Escribinos ahora</div>
                     </div>
                     <div className="lp-contact-action">
-                      <a href="https://wa.me/5491123456789" target="_blank" rel="noopener noreferrer" className="lp-contact-btn wa">
+                      <a href="https://wa.me/543493415775" target="_blank" rel="noopener noreferrer" className="lp-contact-btn wa">
                         <Wa style={{width:15,height:15}}/> Abrir
                       </a>
                     </div>
@@ -778,7 +773,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
                       <div className="lp-contact-value">hola@cotizagro.com.ar</div>
                     </div>
                     <div className="lp-contact-action">
-                      <a href="mailto:hola@cotizagro.com.ar" className="lp-contact-btn mail">Escribir</a>
+                      <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hola%40cotizagro.com.ar" className="lp-contact-btn mail">Escribir</a>
                     </div>
                   </div>
 
@@ -817,7 +812,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               </div>
               <div className="lp-footer-col">
                 <h4>Contacto</h4>
-                <a href="mailto:hola@cotizagro.com.ar">hola@cotizagro.com.ar</a>
+                <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hola%40cotizagro.com.ar">hola@cotizagro.com.ar</a>
                 <a href="https://cotizagro.com.ar">cotizagro.com.ar</a>
               </div>
             </div>
@@ -829,7 +824,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
         </footer>
 
         {/* ── WhatsApp float ──────────────────────────────────────────────── */}
-        <a href="https://wa.me/5491123456789" target="_blank" rel="noopener noreferrer" className="lp-wa-float" aria-label="WhatsApp">
+        <a href="https://wa.me/543493415775" target="_blank" rel="noopener noreferrer" className="lp-wa-float" aria-label="WhatsApp">
           <Wa/>
         </a>
 
