@@ -289,10 +289,12 @@ function App() {
   const [userId, setUserId]       = useState<string | null>(null)
   const [checking, setChecking]   = useState(true)
   const [showLogin, setShowLogin] = useState(false)
+  const [loginMode, setLoginMode] = useState<'login' | 'register'>('login')
 
-  const openLogin = (plan?: string) => {
+  const openLogin = (plan?: string, mode: 'login' | 'register' = 'register') => {
     if (plan) sessionStorage.setItem('pendingPlan', plan)
-    window.history.pushState({ login: true }, '', '/login')
+    window.history.pushState({ login: true, mode }, '', '/login')
+    setLoginMode(mode)
     setShowLogin(true)
   }
 
@@ -302,7 +304,12 @@ function App() {
 
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
-      if (!e.state?.login) setShowLogin(false)
+      if (e.state?.login) {
+        setLoginMode(e.state.mode ?? 'login')
+        setShowLogin(true)
+      } else {
+        setShowLogin(false)
+      }
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -347,11 +354,11 @@ function App() {
     if (showLogin) {
       return (
         <QueryClientProvider client={qc}>
-          <LoginPage onLogin={closeLogin} />
+          <LoginPage onLogin={closeLogin} initialMode={loginMode} />
         </QueryClientProvider>
       )
     }
-    return <LandingPage onLogin={openLogin} />
+    return <LandingPage onLogin={openLogin} onSignIn={() => openLogin(undefined, 'login')} />
   }
 
   return (

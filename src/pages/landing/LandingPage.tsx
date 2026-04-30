@@ -25,7 +25,7 @@ const Group    = (p: React.SVGProps<SVGSVGElement>) => <svg width="20" height="2
 
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
+export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) => void; onSignIn: () => void }) {
   const [scrolled, setScrolled]   = useState(false)
   const [faqOpen, setFaqOpen]     = useState<number>(0)
   const [annual, setAnnual]       = useState(false)
@@ -413,7 +413,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               ))}
             </div>
             <div className="lp-nav-cta">
-              <button onClick={() => handleLogin()} className="lp-btn lp-btn-ghost">Iniciar sesión</button>
+              <button onClick={() => onSignIn()} className="lp-btn lp-btn-ghost">Iniciar sesión</button>
               <button onClick={() => handleLogin()} className="lp-btn lp-btn-primary" disabled={loggingIn}>
                 {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta <Arrow/></>}
               </button>
@@ -430,7 +430,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               <button onClick={() => { handleLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-primary" style={{width:'100%',justifyContent:'center'}} disabled={loggingIn}>
                 {loggingIn ? <span className="lp-spin"/> : <>Crear cuenta gratis <Arrow/></>}
               </button>
-              <button onClick={() => { handleLogin(); setMenuOpen(false); }} className="lp-btn lp-btn-outline" style={{width:'100%',justifyContent:'center'}}>Iniciar sesión</button>
+              <button onClick={() => { onSignIn(); setMenuOpen(false); }} className="lp-btn lp-btn-outline" style={{width:'100%',justifyContent:'center'}}>Iniciar sesión</button>
             </div>
           </div>
         </nav>
@@ -807,7 +807,7 @@ export function LandingPage({ onLogin }: { onLogin: (plan?: string) => void }) {
               </div>
               <div className="lp-footer-col">
                 <h4>Cuenta</h4>
-                <button onClick={() => handleLogin()}>Iniciar sesión</button>
+                <button onClick={() => onSignIn()}>Iniciar sesión</button>
                 <button onClick={() => handleLogin()}>Crear cuenta</button>
               </div>
               <div className="lp-footer-col">

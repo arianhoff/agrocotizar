@@ -24,8 +24,8 @@ const LOCKOUT_SECS     = 60
 
 type Mode = 'login' | 'register' | 'forgot'
 
-export function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [mode, setMode]         = useState<Mode>('login')
+export function LoginPage({ onLogin, initialMode = 'login' }: { onLogin: () => void; initialMode?: Mode }) {
+  const [mode, setMode]         = useState<Mode>(initialMode)
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
