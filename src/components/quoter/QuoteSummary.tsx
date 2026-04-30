@@ -198,7 +198,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => { afterShare(); onClose() }}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#16A34A] text-[12px] font-medium hover:bg-[#25D366]/20 transition-colors cursor-pointer no-underline"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-[12px] font-medium hover:bg-[#25D366]/20 transition-colors cursor-pointer no-underline"
               >
                 <MessageCircle size={13} />
                 WhatsApp

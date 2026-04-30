@@ -72,7 +72,7 @@ async function getToken() {
 // ─── Current plan card ────────────────────────────────────────────────────────
 
 function CurrentPlanCard() {
-  const { plan, planExpiresAt, trialEndsAt, isActive, inTrial } = useSubscriptionStore()
+  const { plan, planExpiresAt, isActive } = useSubscriptionStore()
 
   if (plan === 'free') {
     return (
@@ -94,8 +94,7 @@ function CurrentPlanCard() {
   }
 
   const planName = PLAN_NAMES[plan]
-  const activeDate = inTrial ? trialEndsAt : planExpiresAt
-  const daysLeft  = daysUntil(activeDate)
+  const daysLeft  = daysUntil(planExpiresAt)
   const expiring  = daysLeft <= 7 && daysLeft > 0
 
   return (
@@ -114,21 +113,14 @@ function CurrentPlanCard() {
       </div>
       <div className="flex-1">
         <div className="text-[14px] font-semibold text-[#0F172A]">Plan {planName}</div>
-        {isActive && inTrial && (
-          <div className="text-[12px] text-[#F59E0B] mt-0.5 flex items-center gap-1">
-            <Clock size={11} />
-            Prueba gratuita · {daysLeft} día{daysLeft !== 1 ? 's' : ''} restante{daysLeft !== 1 ? 's' : ''}
-            {activeDate ? ` (vence ${formatDate(activeDate)})` : ''}
-          </div>
-        )}
-        {isActive && !inTrial && (
+        {isActive && (
           <div className={`text-[12px] mt-0.5 flex items-center gap-1 ${
             expiring ? 'text-[#F59E0B]' : 'text-[#22C55E]'
           }`}>
             <Clock size={11} />
             {expiring
-              ? `Vence en ${daysLeft} día${daysLeft !== 1 ? 's' : ''} · ${formatDate(activeDate)}`
-              : `Activo hasta ${formatDate(activeDate)}`
+              ? `Vence en ${daysLeft} día${daysLeft !== 1 ? 's' : ''} · ${formatDate(planExpiresAt)}`
+              : `Activo hasta ${formatDate(planExpiresAt)}`
             }
           </div>
         )}
