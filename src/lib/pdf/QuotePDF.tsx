@@ -591,7 +591,7 @@ export async function uploadQuotePDF(quote: Quote): Promise<UploadResult> {
       })
       if (shareRes.ok) {
         const { token } = await shareRes.json()
-        if (token) shortUrl = `${window.location.origin}/api/share?t=${token}`
+        if (token) shortUrl = `${window.location.origin}/s/${token}`
       }
     } catch { /* share registration failed — PDF uploaded OK but no short URL */ }
 
