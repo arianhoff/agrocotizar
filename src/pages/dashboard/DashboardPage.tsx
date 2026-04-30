@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Card } from '@/components/ui'
 import {
-  FileText, TrendingUp, Users, Bell, ArrowUpRight,
+  FileText, TrendingUp, Users, Bell,
   CheckCircle, RotateCcw, AlertTriangle, Clock,
   Phone, Mail, MessageCircle, Package, PlusCircle,
   Send, XCircle,
@@ -109,7 +109,8 @@ function ReminderCard({ fu }: { fu: FollowUp }) {
             </a>
           )}
           {fu.client_email && (
-            <a href={`mailto:${fu.client_email}`}
+            <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(fu.client_email)}`}
+              target="_blank" rel="noopener noreferrer"
               className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#8B5CF6] hover:bg-[#8B5CF6]/10 transition-all" title="Email">
               <Mail size={14} />
             </a>

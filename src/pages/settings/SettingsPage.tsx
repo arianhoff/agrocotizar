@@ -471,7 +471,7 @@ export function SettingsPage() {
   // Open subscription tab when returning from MP payment or from landing page plan intent
   const initialSection = (() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.has('payment') || params.has('autostart')) return 'subscription' as SectionId
+    if (params.has('payment')) return 'subscription' as SectionId
     return 'seller' as SectionId
   })()
 
