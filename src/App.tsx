@@ -290,6 +290,24 @@ function App() {
   const [checking, setChecking]   = useState(true)
   const [showLogin, setShowLogin] = useState(false)
 
+  const openLogin = (plan?: string) => {
+    if (plan) sessionStorage.setItem('pendingPlan', plan)
+    window.history.pushState({ login: true }, '', '/login')
+    setShowLogin(true)
+  }
+
+  const closeLogin = () => {
+    setShowLogin(false)
+  }
+
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      if (!e.state?.login) setShowLogin(false)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id ?? null)
@@ -303,16 +321,12 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        // Don't wipe localStorage — preserve data so same user can re-login without losing work.
-        // A different-user login is handled below.
         setUserId(null)
       } else if (session?.user) {
-        // If a DIFFERENT user is logging in, clear stale data from the previous account.
         setUserId(prev => {
           if (prev && prev !== session.user.id) clearAllStores()
           return session.user.id
         })
-        // On fresh sign-in, honour plan intent stored by the landing page
         if (event === 'SIGNED_IN') {
           const pending = sessionStorage.getItem('pendingPlan')
           if (pending) {
@@ -333,14 +347,11 @@ function App() {
     if (showLogin) {
       return (
         <QueryClientProvider client={qc}>
-          <LoginPage onLogin={() => {}} />
+          <LoginPage onLogin={closeLogin} />
         </QueryClientProvider>
       )
     }
-    return <LandingPage onLogin={(plan) => {
-      if (plan) sessionStorage.setItem('pendingPlan', plan)
-      setShowLogin(true)
-    }} />
+    return <LandingPage onLogin={openLogin} />
   }
 
   return (
