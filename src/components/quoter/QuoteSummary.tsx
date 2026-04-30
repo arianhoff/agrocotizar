@@ -8,12 +8,13 @@ import { downloadQuotePDF, buildQuotePDFFile, buildWhatsAppText, buildEmailSubje
 import { useSaveQuote } from '@/hooks/useSupabase'
 import { useClientStore } from '@/store/clientStore'
 import { useCRMStore } from '@/store/crmStore'
+import { useSettingsStore } from '@/store/settingsStore'
 import type { Quote, QuoteTotals } from '@/types'
 
 // ─── Share Modal ─────────────────────────────────────────────────────────────
 
-function ShareModal({ quote, totals, onClose, afterShare }: {
-  quote: Quote; totals: QuoteTotals; onClose: () => void; afterShare: () => void
+function ShareModal({ quote, totals, onClose, afterShare, companyName }: {
+  quote: Quote; totals: QuoteTotals; onClose: () => void; afterShare: () => void; companyName: string
 }) {
   const [status, setStatus] = useState<'preparing' | 'ready' | 'fallback'>('preparing')
   const [shareUrl, setShareUrl] = useState<string | null>(null)
@@ -42,7 +43,7 @@ function ShareModal({ quote, totals, onClose, afterShare }: {
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shortMsg = `Hola${quote.client.name ? ` ${quote.client.name}` : ''}, te envío la cotización ${quote.quote_number} de GEA Gergolet Agrícola.`
+  const shortMsg = `Hola${quote.client.name ? ` ${quote.client.name}` : ''}, te envío la cotización ${quote.quote_number}${companyName ? ` de ${companyName}` : ''}.`
 
   const handleCopy = async () => {
     if (!shareUrl) return
@@ -246,6 +247,8 @@ export function QuoteSummary() {
   const saveQuote = useSaveQuote()
   const { upsertFromQuote } = useClientStore()
   const { addFollowUp, sellerEmail } = useCRMStore()
+  const { company } = useSettingsStore()
+  const companyName = company.name || 'Cotizagro'
 
   const hasItems = quote.items.length > 0
 
@@ -311,6 +314,7 @@ export function QuoteSummary() {
         totals={totals}
         onClose={() => setShowShare(false)}
         afterShare={afterShare}
+        companyName={companyName}
       />
     )}
     <div className="bg-white rounded-xl overflow-hidden border border-[#E2E8F0]">
