@@ -209,7 +209,7 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
         /* Hero image */
         .lp-hero-img-wrap { display: flex; align-items: center; justify-content: center; }
         .lp-hero-img { width: 100%; height: auto; filter: drop-shadow(0 24px 48px rgba(14,21,19,.13)); }
-        @media (max-width: 960px) { .lp-hero-img-wrap { max-width: 560px; margin: 0 auto; } }
+        @media (max-width: 960px) { .lp-hero-img-wrap { order: -1; max-width: 560px; margin: 0 auto; } }
         @media (max-width: 480px) { .lp-hero-img-wrap { max-width: 380px; } }
 
         /* ── Logos ── */
