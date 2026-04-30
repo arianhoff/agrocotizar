@@ -435,12 +435,13 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
 
         {/* ── Hero ────────────────────────────────────────────────────────── */}
         <section className="lp-hero" id="hero">
-          <div className="lp-container lp-hero-grid">
+          <div className="lp-container">
+            <div className="lp-hero-badge">
+              <span className="lp-hero-badge-tag">Gratis</span>
+              <span>Importá PDF, Excel o foto · Sin formateo manual</span>
+            </div>
+          <div className="lp-hero-grid">
             <div>
-              <div className="lp-hero-badge">
-                <span className="lp-hero-badge-tag">Gratis</span>
-                <span>Importá PDF, Excel o foto · Sin formateo manual</span>
-              </div>
               <h1>Cotizá tus máquinas <HighlightedText delay={0.2}>10× más rápido</HighlightedText></h1>
               <p className="lp-hero-sub">Cargá tu lista de precios y nuestra IA la pasa en limpio. Mandá cotizaciones profesionales en minutos, no en horas.</p>
               <div className="lp-hero-ctas">
@@ -469,6 +470,7 @@ export function LandingPage({ onLogin, onSignIn }: { onLogin: (plan?: string) =>
             <div className="lp-hero-img-wrap">
               <img src={headerImg} alt="Cotizagro app" className="lp-hero-img" />
             </div>
+          </div>
           </div>
         </section>
 
