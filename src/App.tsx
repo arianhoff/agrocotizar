@@ -292,7 +292,6 @@ function App() {
   const [loginMode, setLoginMode] = useState<'login' | 'register'>('login')
 
   const openLogin = (plan?: string, mode: 'login' | 'register' = 'register') => {
-    if (plan) sessionStorage.setItem('pendingPlan', plan)
     window.history.pushState({ login: true, mode }, '', '/login')
     setLoginMode(mode)
     setShowLogin(true)
@@ -334,13 +333,6 @@ function App() {
           if (prev && prev !== session.user.id) clearAllStores()
           return session.user.id
         })
-        if (event === 'SIGNED_IN') {
-          const pending = sessionStorage.getItem('pendingPlan')
-          if (pending) {
-            sessionStorage.removeItem('pendingPlan')
-            window.location.replace(`/settings?autostart=${pending}`)
-          }
-        }
       }
     })
 
